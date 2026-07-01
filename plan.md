@@ -24,8 +24,11 @@ provides faithful encrypted portability — without us hosting any backend.
 installation is **detect-and-guide**; **automatic WSL/Docker provisioning lands post-MVP** (Phase 4).
 
 **MVP scope (to manage the large surface):** ship **Linux/WSL only** — commands `doctor` / `init` /
-`up` / `down` / `restart` / `status` / `logs` / `open` / `backup` / `restore` / `recovery` /
-`passphrase` (local-file bundle) — with Docker via **detect + guided manual install**. **Deferred to
+`up` / `down` / `restart` / `status` / `logs` / `open` / `backup` / `restore` (local-file bundle) — with
+Docker via **detect + guided manual install**. `backup`/`restore` are **hard MVP** and already include
+recovery-slot creation + the first-run passphrase/recovery-code setup; the standalone **`recovery` /
+`passphrase` admin commands** (show/rotate/change/reset) are the **Phase-3d fast-follow** (§13) that lands
+right after the core backup→restore loop is green — they do **not** gate the portability proof. **Deferred to
 post-MVP:** Windows auto-bootstrap (`wsl --install` + reboot-resume), tunnels (OAuth / inbound webhooks)
 **including `init`'s tunnel/domain offer**, remotes, keychain caching, the Postgres profile, and the
 `config` / `update` / `remote` / `tunnel` commands. Rationale:
@@ -80,7 +83,8 @@ roadmap** (Phase 0 = minimal CLI that generates + runs the compose → Phase 3 =
 ```
 
 *(The box shows the full **target** command set; the **MVP subset** is
-`doctor`/`init`/`up`/`down`/`restart`/`status`/`logs`/`open`/`backup`/`restore`/`recovery`/`passphrase`.)*
+`doctor`/`init`/`up`/`down`/`restart`/`status`/`logs`/`open`/`backup`/`restore` — the
+`recovery`/`passphrase` **admin** commands are the Phase-3d fast-follow, §13.)*
 
 **Layering:** `app.py` (thin CLI) → `core/*` (domain logic) → `bootstrap/*` (host/OS provisioning)
 + `compose/*` (rendering). `core` never imports `app`; OS-specific code is isolated in `bootstrap`.
@@ -276,7 +280,9 @@ primary integrity mechanism.
 ## 7. Command surface (target)
 
 Full **target** surface; rows tagged **(post-MVP)** ship after Phase 3. **MVP subset:** `doctor`, `init`,
-`up`/`down`/`restart`, `status`, `logs`, `open`, `backup`, `restore`, `recovery`, `passphrase`.
+`up`/`down`/`restart`, `status`, `logs`, `open`, `backup`, `restore` (hard MVP); the `recovery` and
+`passphrase` **admin** commands are the **Phase-3d fast-follow** — `backup`/`restore` themselves already set
+the passphrase + emit recovery slots.
 
 | Command | Behavior |
 |---|---|
@@ -287,14 +293,43 @@ Full **target** surface; rows tagged **(post-MVP)** ship after Phase 3. **MVP su
 | `lon logs [-f]` | stream container logs |
 | `lon update` | **(post-MVP)** **auto-`backup` first** (skippable with `--no-backup`) since image updates may run DB migrations; then pull newer image, recreate, record version |
 | `lon open` | open the editor URL in a browser — tries `wslview` → `powershell.exe Start-Process` (WSL) → `xdg-open` (Linux) → `open` (macOS); **prints the URL when no opener is available** |
-| `lon backup [--push <remote>] [--with-exports]` | **full-instance** encrypted bundle (whole `.n8n` volume). **First run sets the backup passphrase + shows the recovery code once.** Record in SQLite; optional remote push + git-friendly logical exports |
+| `lon backup [--push <remote>] [--with-exports]` | **full-instance** encrypted bundle (whole `.n8n` volume). **First run sets the backup passphrase + shows the recovery code once** and prints the recovery rule verbatim (*keep at least one of {a working instance, an openable bundle}*; §10). Record in SQLite; optional remote push + git-friendly logical exports |
 | `lon restore <bundle \| --from-remote> [--replace]` | ensure prereqs → decrypt → rehydrate **full volume** + key + base URL → `up`. **Refuses to overwrite an existing instance unless `--replace`** (which snapshots current state first) |
 | `lon remote add\|list\|remove` | **(post-MVP)** configure git / s3 / folder remote |
 | `lon tunnel start\|stop\|status` | **(post-MVP)** bring up/down public URL (ngrok default / n8n `--tunnel` / cloudflared); wire `WEBHOOK_URL`+`N8N_EDITOR_BASE_URL`+`N8N_PROXY_HOPS` (re-secure cookie on HTTPS); print OAuth redirect URL to register |
 | `lon config get\|set` | **(post-MVP)** settings incl. `cache-passphrase`, default port, image tag, base URL, tunnel provider, `ngrok-authtoken` |
 | `lon recovery show\|rotate` | `show` reveals the recovery code (**requires authorization — passphrase or keychain**, since `recovery.wrapped` is encrypted); `rotate` generates a new recovery secret and re-wraps the recovery slot + future bundles |
-| `lon passphrase change` | set a new backup passphrase (authorize with current passphrase or recovery code); re-wraps the local recovery secret + future bundles' passphrase slot |
+| `lon passphrase change` | set a new backup passphrase (authorize with current passphrase or recovery code); re-wraps the local recovery secret + future bundles' passphrase slot. **Existing bundles are NOT rekeyed** — each still opens only with the passphrase/recovery code current when it was written; there is intentionally **no bulk "rekey old bundles" command** (would require re-reading every bundle). To refresh, run a new `backup` |
 | `lon passphrase reset` | **escape hatch** (live instance required): both passphrase **and** recovery code lost → discard old unlock material, set a fresh passphrase + recovery code; **old bundles become permanently unopenable** |
+
+### 7.1 CLI contracts (flags & exit codes — pin before coding)
+
+These global flags are listed in §3; their **contracts** are fixed here so scripts and CI can depend on them.
+(`--instance` selects the target instance and `--no-install` — the post-MVP opt-out of prereq auto-install —
+are intentionally left uncontracted here; they need no stable machine-facing behavior beyond their obvious effect.)
+
+- **Exit codes.** `0` success; `2` usage error (Typer default for bad args/flags); `1` generic/unexpected
+  error. Expected, script-branchable failures get **stable, documented codes**: `10` prerequisite missing
+  (Docker/daemon), `11` port in use, `12` instance busy (lock held, §16), `13` instance not found / not
+  registered, `14` bundle decrypt/auth failure, `15` version-incompatible restore. (Phase 0 only needs
+  `0`/`1`/`2` + `10`/`11`; the rest land with the commands that raise them — never reuse a code for a new meaning.)
+- **`--json`.** Emits a **single JSON object to stdout** (human Rich output then goes to stderr / is
+  suppressed) with a stable shape: `{ "ok": bool, "command": str, "data": {…}, "error": {"code": int,
+  "message": str} | null }`. Failures set `ok:false`, populate `error`, and the **process exit code still
+  reflects the failure**. No partial/streaming JSON except `logs -f` (newline-delimited objects).
+- **`--dry-run`.** Plan-only: **no** container, volume, filesystem-write, or remote side effects. Prints
+  (or, with `--json`, emits) exactly what *would* happen — files to write, `docker` commands to run, pointer
+  swaps. Read-only detection (`doctor`/`status`) still runs; mutating ops under `--dry-run` **do not take the
+  per-instance lock**. **Secrets are never materialized in dry-run output:** a generated `N8N_ENCRYPTION_KEY`,
+  passphrase, recovery code, or provider token is shown **redacted** (`***`) or as a labeled synthetic
+  placeholder — dry-run must never print (or generate-and-print) a real key. (`--dry-run` itself arrives with
+  the global flags in Phase 1; this rule binds the `.env`-render codepath introduced in Phase 0, so that once
+  dry-run wraps it the generated key is redacted.)
+- **`--yes`.** Assume "yes" for confirmation prompts (CI/non-interactive). It **never** bypasses a guard
+  that has no safe default — `restore` over an existing instance still requires `--replace`, `passphrase
+  reset` still requires explicit data-loss confirmation — and it **never** supplies secrets (§16: secrets
+  only via prompt/stdin).
+- **`--verbose`.** Adds diagnostic logging to **stderr only**; must not alter stdout or the `--json` payload.
 
 ---
 
@@ -322,6 +357,16 @@ Full **target** surface; rows tagged **(post-MVP)** ship after Phase 3. **MVP su
   Backup **always captures the full `/home/node/.n8n` volume**; the DB portion additionally branches on
   type (volume file in SQLite mode vs a `pg_dump` in Postgres mode).
 
+**Image-pin release process (repeatable — the digest invariant needs a repeatable step):**
+1. Pick the target n8n tag — a **stable, non-floating** release.
+2. Resolve its **multi-arch manifest-list digest**: `docker buildx imagetools inspect
+   docker.n8n.io/n8nio/n8n:<tag>`; record `<tag>@sha256:<manifest-list-digest>` (§16), **not** a per-arch digest.
+3. **Smoke-test that exact pin** with the §14 fast loop (`init` → owner + workflow + credential → `backup` →
+   wipe → `restore`) on **both amd64 and arm64** before it ships.
+4. Bake the frozen `tag@digest` into the release as the default `default-image-tag`, record it in the
+   `CHANGELOG`. Bumping n8n = a new `lon` release that repeats 1–3 (until post-MVP `lon update` automates the
+   client side).
+
 ---
 
 ## 9. Networking & integrations
@@ -333,6 +378,13 @@ Integrations split by **direction** — this decides if a public URL is needed:
 | Outbound **API-key** (OpenAI, REST, DB, mail) | No | works on `localhost`, offline-friendly |
 | **OAuth2** sign-in (Google, Slack…) | callback URL the provider accepts | some allow `http://localhost`; others need HTTPS/public → tunnel |
 | Inbound **webhook triggers** (Stripe/GitHub/Telegram → n8n) | Yes | external service must reach n8n → tunnel or domain |
+
+> **⚠️ MVP networking limitation (surface prominently in README + `init` copy).** MVP ships **local-only**
+> networking (no tunnels until Phase 5). So during MVP: **inbound webhooks and HTTPS-only OAuth callbacks do
+> not work**, and only `http://localhost` OAuth providers can complete a sign-in. `backup`/`restore` faithfully
+> carry **stored OAuth tokens** across machines (proven in Phase 3), but that is **token persistence, not live
+> provider callback continuity** — Google/Slack/webhook flows only "just work" across machines once Phase 5
+> lands. Don't let README/CLI copy imply otherwise before then.
 
 **Providers (via `tunnel.py`) — all of this is post-MVP; the MVP ships local-only networking:**
 - **ngrok (default real provider):** free plan gives **one assigned dev domain** (auto-allocated, not
@@ -383,8 +435,10 @@ secret** generated the **first time you run `lon backup`**. It is persisted loca
 keychain where available), so **every** `lon backup` can add a recovery slot without re-prompting.
 `lon recovery show` re-derives the human-readable code; `lon recovery rotate` generates a new secret
 and re-wraps the local copy + future bundles. Bundles stay openable by the recovery code that was
-current when they were made. (Recovery-code **format** — entropy, encoding, checksum, KDF input — is
-specified in §16.)
+current when they were made; **likewise `lon passphrase change` never rekeys existing bundles** — it
+re-wraps only the local secret + future bundles, so old bundles still need their original passphrase (or
+the recovery code current at their creation). There is intentionally no bulk "rekey old bundles" command.
+(Recovery-code **format** — entropy, encoding, checksum, KDF input — is specified in §16.)
 
 **Escape hatch — lost passphrase AND recovery code, but the live instance exists:** run **`lon passphrase
 reset`**. Because `recovery.wrapped` is sealed under the *old* (lost) passphrase it cannot be unwrapped, so
@@ -409,8 +463,8 @@ Windows bridge (shim to Credential Manager) is optional and **post-MVP**.
 we deliberately don't escrow keys (escrow = backdoor). **But a forgotten passphrase rarely matters:**
 the *live instance is independent of the bundle*, so you just run `lon backup` again with a new
 passphrase. True data loss needs **passphrase + recovery code + the live instance** all gone at once.
-Rule documented for users: *keep at least one of {a working instance, an openable bundle} and you're
-never stuck.*
+Rule surfaced to users **verbatim** — in `lon backup` first-run output and the README (not just this
+design doc): *keep at least one of {a working instance, an openable bundle} and you're never stuck.*
 
 ---
 
@@ -508,6 +562,9 @@ from the one before it — the compose `lon` renders in Phase 0 is the same one 
 ### Phase 0 — Minimal `lon`: generate the compose + run it (with error handling)
 - **Goal:** the smallest CLI that **writes** `docker-compose.yml` + `.env` and brings n8n up — failing
   gracefully, never with a raw stack trace.
+- **Scope guard:** Phase 0 is deliberately tiny — **no** crypto, no registry/SQLite, no `init`, no Windows
+  bootstrap, no tunnels. Those belong to later phases; keeping them out is what makes Phase 0 shippable in
+  one sitting. If a task needs any of them, it's not Phase 0.
 - **Build:** uv + **Typer + Rich** skeleton (Rich for output/error formatting) with `lon up` + `lon down`;
   `compose/template.py` renders `docker-compose.yml` + `.env` (generated `N8N_ENCRYPTION_KEY`, `N8N_PORT`,
   `N8N_SECURE_COOKIE=false`, recommended envs from §8, named volume); shell out to `docker compose up -d` /
@@ -538,7 +595,9 @@ from the one before it — the compose `lon` renders in Phase 0 is the same one 
 - **Build:** add `lon status/logs/restart/open` + global flags (`--yes`/`--json`/`--dry-run`/`--verbose`),
   Rich-rendered status/tables; `core/state.py` (SQLite registry) + `core/instance.py`; read-only `doctor`
   (OS / Docker / port). **Adopt** any pre-existing Phase-0 instance into the registry **without overwriting
-  its `.env`** (preserve the encryption key); after this, `up` requires a registered instance.
+  its `.env`** (preserve the encryption key); after this, `up` **consults/records via the registry
+  (auto-adopting a Phase-0 instance)** — the hard "must be registered, else error" requirement lands in
+  **Phase 2** once `init` is the entry point for creating a new instance.
 - **Checkpoint ✅:** `status/logs/open/restart` work; the instance is recorded in `state.db`;
   `doctor` reports OS / Docker / port availability.
 - **Tests:** unit — `state.py` DAO CRUD on a temp SQLite; `instance.py` status/log parsing from mocked
@@ -558,8 +617,10 @@ from the one before it — the compose `lon` renders in Phase 0 is the same one 
 
 ### Phase 3 — Encrypted backup / restore  ← the actual product  (slices: 3a → 3b → 3c core loop, then 3d admin)
 Reproduce the entire instance on any machine from one encrypted file. The MVP-critical path is **3a→3b→3c**
-(prove backup→wipe→restore); **3d** (recovery/passphrase admin) follows once the loop is green and may slip
-to a fast-follow. Split so each slice is independently testable; don't advance until its checkpoint is green.
+(prove backup→wipe→restore); **3d** (the standalone `recovery`/`passphrase` **admin** commands) is the
+**designated fast-follow** — it lands right after the core loop is green and does **not** gate the
+portability proof, since `backup`/`restore` already create recovery slots + set the first-run passphrase in
+3b/3c. Split so each slice is independently testable; don't advance until its checkpoint is green.
 
 **3a — Crypto core (`core/crypto.py` — library only, no CLI, no persistence):** envelope + multi-slot,
 framing, AAD, canonical JSON, the fixed constants (§6.1); slot wrap/unwrap for passphrase + recovery KEKs.
@@ -585,14 +646,17 @@ volume restore into a fresh volume (`--numeric-owner`, `config` → 0600), rehyd
 - **Tests:** unit — version-policy branches, `--replace` guard, permission fix-up (mocked). Integration
   (gated) — full `backup`→wipe→`restore` loop on real Docker.
 
-**3d — Recovery/passphrase admin (after the loop is proven):** `lon recovery show/rotate`,
+> **— MVP complete: the instance is portable and self-contained (backup→restore proven at 3c). 3d below is
+> admin fast-follow / polish; everything from Phase 4 on is post-MVP. —**
+
+**3d — MVP fast-follow / admin polish (recovery/passphrase admin, after the loop is proven):** `lon recovery show/rotate`,
 `lon passphrase change`, `lon passphrase reset` — all operate on the `recovery.wrapped` material from 3b.
 - **Checkpoint ✅:** `recovery show` (authorized) prints the code; `rotate` re-wraps; `passphrase change`
   sets a new passphrase; `passphrase reset` on a live instance mints a fresh pair, leaving old bundles locked.
 - **Tests:** unit — authorization gate, re-wrap correctness, `reset` discards old material (via 3a library).
 - **Ref:** §6.1, §10, §11 (backup/restore), §14, §16.
 
-> **— MVP complete. The instance is portable and self-contained. Everything below is post-MVP. —**
+> **— End of MVP (core loop 3a–3c + admin fast-follow 3d). Everything below is post-MVP. —**
 
 ### Phase 4 — Prereq automation (Docker + Windows)
 - **Goal:** remove the manual provisioning steps from Phases 2–3.
@@ -612,6 +676,9 @@ volume restore into a fresh volume (`--numeric-owner`, `config` → 0600), rehyd
 
 ### Phase 5 — Networking & tunnels
 - **Goal:** OAuth sign-in + inbound webhooks without a manually configured domain.
+- **Pre-req:** before building, **re-verify the §9 ngrok free-tier assumptions** (request/transfer caps,
+  assigned-dev-domain policy, browser interstitial, authtoken flow) against current provider docs — these
+  drift, and the plan treats them as documentation, not a guarantee.
 - **Build:** `core/tunnel.py` (ngrok default, cloudflared), wire `WEBHOOK_URL`/`N8N_EDITOR_BASE_URL` +
   `N8N_PROXY_HOPS=1` and re-secure the cookie on HTTPS, embed tunnel config in the bundle; n8n `--tunnel`
   as a dev-only convenience.
@@ -722,9 +789,12 @@ Hard rules every phase must uphold; unit tests assert them.
 - **`N8N_ENCRYPTION_KEY` format.** Generate **32 random bytes from a CSPRNG, base64-encoded** (n8n accepts
   an arbitrary string; we pin this so it's deterministic and documented). Written to the instance `.env`
   (chmod 600) and carried in every bundle — **never regenerated** for an existing instance.
-- **Secrets never on argv.** The passphrase and recovery code are read **only** via interactive prompt or
-  stdin — **never a CLI flag or env-arg** — keeping them out of shell history and `ps`. Applies to every
-  authorizing command (`backup`, `restore`, `recovery`, `passphrase`).
+- **Secrets never on argv, never in output.** The passphrase and recovery code are read **only** via
+  interactive prompt or stdin — **never a CLI flag or env-arg** — keeping them out of shell history and `ps`
+  (applies to `backup`, `restore`, `recovery`, `passphrase`). Symmetrically, **generated secrets are never
+  emitted to stdout/`--json`/logs**: the `N8N_ENCRYPTION_KEY` is written only to the chmod-600 `.env` (and
+  into encrypted bundles), and `--dry-run`/`--verbose` output redacts it (§7.1). The recovery code is the
+  **sole deliberate exception** — shown once at first `backup` / `recovery show`, by explicit design.
 - **Exact crypto framing (restated).** File = `magic("N8NB", 4B)` · `header_len(uint32 BE, ≤64 KiB)` ·
   `canonical-JSON header` · `ciphertext ‖ GCM tag(16B)`. The **raw on-disk header bytes** (exactly
   `header_len` of them — never a re-serialization) are the AES-256-GCM **AAD**; the **tag is
