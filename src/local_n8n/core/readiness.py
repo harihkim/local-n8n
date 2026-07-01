@@ -5,8 +5,13 @@ from http import HTTPStatus
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from local_n8n.core.diagnostics import debug
 
-def wait_for_http_ready(
+READY_MARKERS = ("n8n", "window.base_path", "/assets/")
+NOT_READY_MARKERS = ("cannot get", "cannot post")
+
+
+def wait_for_editor_ready(
     url: str,
     timeout_seconds: float = 90.0,
     interval_seconds: float = 2.0,
@@ -14,19 +19,32 @@ def wait_for_http_ready(
     deadline = time.monotonic() + timeout_seconds
 
     while time.monotonic() < deadline:
-        if _is_http_ready(url):
+        debug(f"checking editor readiness: {url}")
+        if is_editor_ready(url):
             return True
         time.sleep(interval_seconds)
 
     return False
 
 
-def _is_http_ready(url: str) -> bool:
+def is_editor_ready(url: str) -> bool:
     request = Request(url, headers={"User-Agent": "lon-readiness/0.1"})
     try:
         with urlopen(request, timeout=5) as response:
-            return HTTPStatus.OK <= response.status < HTTPStatus.BAD_REQUEST
+            if not HTTPStatus.OK <= response.status < HTTPStatus.BAD_REQUEST:
+                return False
+            body = response.read(65536).decode("utf-8", errors="ignore").lower()
+            return _looks_like_editor(body)
     except HTTPError as exc:
-        return HTTPStatus.OK <= exc.code < HTTPStatus.BAD_REQUEST
+        debug(f"editor readiness HTTP error: {exc.code}")
+        return False
     except (ConnectionError, TimeoutError, URLError, OSError):
         return False
+
+
+def _looks_like_editor(body: str) -> bool:
+    if not body:
+        return False
+    if any(marker in body for marker in NOT_READY_MARKERS):
+        return False
+    return any(marker in body for marker in READY_MARKERS)

@@ -50,5 +50,11 @@ mode `0600`, and does not overwrite that key on later runs.
 Phase 1 records instances in `~/.config/local-n8n/state.db`. Existing Phase 0 instance files are adopted
 without overwriting `.env`.
 
+Use `--verbose` before the command for diagnostic output:
+
+```bash
+uv run lon --verbose status --instance default
+```
+
 The Phase 0 default n8n image is pinned in code for this CLI release. Because Phase 0 has no `lon update`
 command, moving to a newer n8n image requires a newer `lon` build or an explicit code/config change.

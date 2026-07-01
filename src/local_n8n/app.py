@@ -4,6 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from local_n8n.core.diagnostics import debug, set_verbose
 from local_n8n.core.doctor import run_doctor
 from local_n8n.core.errors import LonError
 from local_n8n.core.instance import (
@@ -24,6 +25,15 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console(stderr=True)
+
+
+@app.callback()
+def app_options(
+    verbose: bool = typer.Option(False, "--verbose", help="Show diagnostic output."),
+) -> None:
+    """Manage a local, portable n8n instance."""
+    set_verbose(verbose)
+    debug("verbose diagnostics enabled")
 
 
 def _handle_error(error: LonError) -> None:
@@ -121,7 +131,7 @@ def status(
     table.add_column("Value")
     table.add_row("URL", result.url)
     table.add_row("Container", result.container_state)
-    table.add_row("Health", result.health or "-")
+    table.add_row("Editor", result.editor_state)
     table.add_row("Volume", result.volume_name)
     table.add_row("Compose", str(result.compose_path))
     console.print(table)

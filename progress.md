@@ -25,6 +25,7 @@ Phase 1 branch: lifecycle commands, SQLite state registry, and read-only `doctor
 - `lon up` now records/adopts instances in the registry while preserving existing Phase 0 `.env` files.
 - Added `lon status`, `lon list`, `lon logs`, `lon start`, `lon stop`, `lon restart`, and `lon open`.
 - Added read-only `lon doctor` diagnostics for platform, Docker CLI, Docker daemon, Docker Compose, and port availability.
+- Added `--verbose` diagnostics for CLI internals such as selected instance, compose path, Docker commands, and readiness checks.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -120,6 +121,30 @@ called out in `plan.md`; it was added as Phase 1 UX polish.
 Follow-up polish: when instances are listed, the CLI now suggests
 `lon status --instance <name>` for more detail.
 
+### Docker health was not useful for n8n editor readiness
+
+`lon status` displayed `Health: -` because the generated Compose service does not define a Docker
+healthcheck, so Docker has no health value to report. That field was misleading.
+
+Fixes:
+
+- Replaced `Health` with `Editor` in `lon status`.
+- `Editor` reports `reachable` / `not reachable` using the same editor-specific readiness probe as `lon up`.
+- Strengthened readiness so a generic HTTP response like `Cannot GET /` is not accepted as ready.
+- Added `--verbose` debug output to make readiness and Docker command behavior easier to diagnose.
+
+### Persistent CLI logs are still a separate decision
+
+We need persistent CLI logs eventually, but not in this readiness commit. Proposed path:
+
+```text
+$LOCAL_N8N_HOME/logs/lon.log
+```
+
+Open design items before implementation: log rotation, retention, and redaction rules. Secrets such as
+`N8N_ENCRYPTION_KEY`, future passphrases/recovery codes, provider tokens, and `.env` contents must never
+be logged.
+
 ## Verification
 
 - `uv run --python 3.13 pytest tests`
@@ -142,5 +167,5 @@ Follow-up polish: when instances are listed, the CLI now suggests
 
 ## Next phase
 
-Continue Phase 1 hardening: global flags (`--json`, `--dry-run`, `--verbose`, `--yes`) and richer status
-output can be layered on top of the registry/lifecycle foundation.
+Continue Phase 1 hardening: global flags (`--json`, `--dry-run`, `--yes`) and persistent diagnostics
+logging can be layered on top of the registry/lifecycle foundation.

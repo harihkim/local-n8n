@@ -12,6 +12,7 @@ from local_n8n.compose.template import (
     read_env_value,
 )
 from local_n8n.core.config import build_instance_config
+from local_n8n.core.diagnostics import debug
 from local_n8n.core.errors import (
     CommandFailedError,
     InstanceNotFoundError,
@@ -20,7 +21,7 @@ from local_n8n.core.errors import (
     PrerequisiteError,
     StartupTimeoutError,
 )
-from local_n8n.core.readiness import wait_for_http_ready
+from local_n8n.core.readiness import is_editor_ready, wait_for_editor_ready
 from local_n8n.core.runner import CommandResult, run
 from local_n8n.core.state import InstanceRecord, StateStore, new_instance_record, utc_now
 
@@ -56,7 +57,7 @@ class StatusResult:
     compose_path: Path
     volume_name: str
     container_state: str
-    health: str | None = None
+    editor_state: str
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ class OpenResult:
 
 
 def up_instance(instance_name: str, port: int | None = None) -> UpResult:
+    debug(f"up instance={instance_name} requested_port={port}")
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name, port, allow_create=True)
         effective_port = port or record.port
@@ -94,6 +96,8 @@ def up_instance(instance_name: str, port: int | None = None) -> UpResult:
             data_volume=record.data_volume,
             image_ref=record.image_ref,
         )
+        debug(f"compose_path={config.compose_path}")
+        debug(f"data_volume={config.volume_name}")
         ensure_instance_files(config)
         state.upsert_instance(
             InstanceRecord(
@@ -126,7 +130,7 @@ def up_instance(instance_name: str, port: int | None = None) -> UpResult:
             ],
         )
 
-        if not wait_for_http_ready(url):
+        if not wait_for_editor_ready(url):
             raise StartupTimeoutError(
                 "n8n started, but the editor did not become reachable in time.",
                 hint=f"Check Docker logs, then try opening {url} again.",
@@ -218,7 +222,7 @@ def start_instance(instance_name: str) -> StartResult:
             "start",
         ],
     )
-    if not wait_for_http_ready(url):
+    if not wait_for_editor_ready(url):
         raise StartupTimeoutError(
             "n8n started, but the editor did not become reachable in time.",
             hint=f"Check Docker logs, then try opening {url} again.",
@@ -255,7 +259,7 @@ def restart_instance(instance_name: str) -> RestartResult:
             "restart",
         ],
     )
-    if not wait_for_http_ready(url):
+    if not wait_for_editor_ready(url):
         raise StartupTimeoutError(
             "n8n restarted, but the editor did not become reachable in time.",
             hint=f"Check Docker logs, then try opening {url} again.",
@@ -264,6 +268,7 @@ def restart_instance(instance_name: str) -> RestartResult:
 
 
 def status_instance(instance_name: str) -> StatusResult:
+    debug(f"status instance={instance_name}")
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name)
     config = build_instance_config(
@@ -272,18 +277,20 @@ def status_instance(instance_name: str) -> StatusResult:
         data_volume=record.data_volume,
         image_ref=record.image_ref,
     )
-    container_state, health = _compose_container_status(config)
+    container_state, _health = _compose_container_status(config)
+    editor_state = _editor_state(f"http://localhost:{record.port}", container_state)
     return StatusResult(
         name=record.name,
         url=f"http://localhost:{record.port}",
         compose_path=config.compose_path,
         volume_name=config.volume_name,
         container_state=container_state,
-        health=health,
+        editor_state=editor_state,
     )
 
 
 def list_instances() -> list[InstanceListItem]:
+    debug("list instances")
     with StateStore.open_default() as state:
         records = state.list_instances()
 
@@ -355,6 +362,7 @@ def _get_or_adopt_instance(
 ) -> InstanceRecord:
     existing = state.get_instance(instance_name)
     if existing is not None:
+        debug(f"found registered instance={instance_name}")
         return existing
 
     config = build_instance_config(instance_name, requested_port or 5678)
@@ -377,6 +385,7 @@ def _get_or_adopt_instance(
         created_at=utc_now(),
     )
     state.upsert_instance(record)
+    debug(f"adopted instance={instance_name} port={port}")
     return record
 
 
@@ -416,6 +425,7 @@ def _parse_compose_ps(output: str) -> tuple[str, str | None]:
 
 
 def _compose_container_status(config: InstanceConfig) -> tuple[str, str | None]:
+    debug(f"checking compose status project={config.project_name}")
     result = _run_compose(
         config.instance_dir,
         [
@@ -432,6 +442,12 @@ def _compose_container_status(config: InstanceConfig) -> tuple[str, str | None]:
         ],
     )
     return _parse_compose_ps(result.stdout)
+
+
+def _editor_state(url: str, container_state: str) -> str:
+    if container_state != "running":
+        return "not reachable"
+    return "reachable" if is_editor_ready(url) else "not reachable"
 
 
 def _open_commands(url: str) -> list[list[str]]:

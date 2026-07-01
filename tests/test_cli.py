@@ -20,7 +20,7 @@ def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 
@@ -38,7 +38,7 @@ def test_cli_up_friendly_error_without_traceback(
         raise FileNotFoundError("docker")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 
@@ -97,7 +97,7 @@ def test_cli_start_fails_fast_when_container_is_not_present(
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
 
     result = runner.invoke(app, ["start"])
 
@@ -120,7 +120,7 @@ def test_cli_restart_fails_fast_when_container_is_not_present(
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
 
     result = runner.invoke(app, ["restart"])
 
@@ -139,12 +139,32 @@ def test_cli_status_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.is_editor_ready", lambda url: True)
 
     result = runner.invoke(app, ["status"])
 
     assert result.exit_code == 0
     assert "Checking n8n status" in result.stderr
     assert "running" in result.stderr
+    assert "reachable" in result.stderr
+
+
+def test_cli_verbose_prints_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.is_editor_ready", lambda url: True)
+
+    result = runner.invoke(app, ["--verbose", "status"])
+
+    assert result.exit_code == 0
+    assert "debug: verbose diagnostics enabled" in result.stderr
 
 
 def test_cli_list_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

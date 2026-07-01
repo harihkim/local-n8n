@@ -4,6 +4,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from local_n8n.core.diagnostics import debug
+
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -14,6 +16,7 @@ class CommandResult:
 
 
 def run(args: list[str], cwd: Path) -> CommandResult:
+    debug(f"running command: {' '.join(args)} (cwd={cwd})")
     completed = subprocess.run(
         args,
         cwd=cwd,
