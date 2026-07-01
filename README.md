@@ -21,9 +21,22 @@ uv run lon up
 uv run lon down
 ```
 
+Phase 1 also includes:
+
+```bash
+uv run lon status
+uv run lon logs
+uv run lon restart
+uv run lon open
+uv run lon doctor
+```
+
 `lon up` writes instance files under `~/.config/local-n8n/instances/default/` unless
 `LOCAL_N8N_HOME` is set. It generates `.env` once, stores a fixed `N8N_ENCRYPTION_KEY`, sets the file to
 mode `0600`, and does not overwrite that key on later runs.
+
+Phase 1 records instances in `~/.config/local-n8n/state.db`. Existing Phase 0 instance files are adopted
+without overwriting `.env`.
 
 The Phase 0 default n8n image is pinned in code for this CLI release. Because Phase 0 has no `lon update`
 command, moving to a newer n8n image requires a newer `lon` build or an explicit code/config change.

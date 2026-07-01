@@ -4,8 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from local_n8n.core.errors import PortInUseError, PrerequisiteError, UsageError
-from local_n8n.core.instance import up_instance
+from local_n8n.core.errors import (
+    InstanceNotFoundError,
+    PortInUseError,
+    PrerequisiteError,
+    UsageError,
+)
+from local_n8n.core.instance import logs_instance, status_instance, up_instance
 from local_n8n.core.runner import CommandResult
 
 
@@ -41,6 +46,7 @@ def test_up_instance_renders_and_runs_docker_compose(
             tmp_path / "instances" / "default",
         )
     ]
+    assert (tmp_path / "state.db").exists()
 
 
 def test_up_instance_maps_missing_docker_to_prerequisite_error(
@@ -106,3 +112,80 @@ def test_up_instance_waits_for_editor_before_returning(
     up_instance("default", port=5680)
 
     assert ready_urls == ["http://localhost:5680"]
+
+
+def test_up_instance_adopts_existing_phase_zero_env_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / ".env").write_text("N8N_ENCRYPTION_KEY=keep\nN8N_PORT=5682\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        calls.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
+
+    result = up_instance("default")
+
+    assert result.url == "http://localhost:5682"
+    assert (instance_dir / ".env").read_text(encoding="utf-8").startswith("N8N_ENCRYPTION_KEY=keep")
+
+
+def test_status_instance_parses_compose_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(
+            args=args,
+            returncode=0,
+            stdout='[{"Service":"n8n","State":"running","Health":"healthy"}]',
+            stderr="",
+        )
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = status_instance("default")
+
+    assert result.container_state == "running"
+    assert result.health == "healthy"
+
+
+def test_logs_instance_returns_compose_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="n8n ready\n", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = logs_instance("default", tail=50)
+
+    assert result.output == "n8n ready\n"
+
+
+def test_status_instance_requires_existing_instance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    with pytest.raises(InstanceNotFoundError) as exc_info:
+        status_instance("missing")
+
+    assert exc_info.value.exit_code == 13
+
+
+def _write_phase_zero_compose(config_home: Path) -> None:
+    instance_dir = config_home / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")

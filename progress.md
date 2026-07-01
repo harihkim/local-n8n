@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 0: minimal `lon` CLI that renders Docker Compose, writes `.env`, and starts/stops n8n.
+Phase 1 branch: lifecycle commands, SQLite state registry, and read-only `doctor`.
 
 ## Implemented
 
@@ -21,7 +21,11 @@ Phase 0: minimal `lon` CLI that renders Docker Compose, writes `.env`, and start
 - Added HTTP readiness polling so `lon up` prints success only after the n8n editor responds.
 - Added a startup progress message so `lon up` does not look hung while n8n is booting.
 - Added a shutdown progress message so `lon down` does not look idle while Docker stops the container.
-- Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, and readiness polling.
+- Added a SQLite `state.db` registry with WAL mode and `busy_timeout`.
+- `lon up` now records/adopts instances in the registry while preserving existing Phase 0 `.env` files.
+- Added `lon status`, `lon logs`, `lon restart`, and `lon open`.
+- Added read-only `lon doctor` diagnostics for platform, Docker CLI, Docker daemon, Docker Compose, and port availability.
+- Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
 
@@ -92,7 +96,14 @@ a short progress update before the wait begins.
   - `lon down --instance phase0-check`
   - removed the temporary Docker volume
 
+## Phase 1 notes
+
+- Read-only/lifecycle commands adopt an existing Phase 0 instance only when instance files already exist.
+  They do not silently create a brand-new registry row.
+- `lon up` remains the creation path for Phase 1.
+- `doctor` is intentionally read-only. It reports problems and hints, but does not install or change anything.
+
 ## Next phase
 
-Phase 1 should add lifecycle/status commands, the SQLite state registry, global flags, and read-only
-`doctor`.
+Continue Phase 1 hardening: global flags (`--json`, `--dry-run`, `--verbose`, `--yes`) and richer status
+output can be layered on top of the registry/lifecycle foundation.
