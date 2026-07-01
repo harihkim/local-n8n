@@ -49,7 +49,7 @@ def up(
     port: int | None = typer.Option(None, "--port", "-p", help="Host port for n8n."),
 ) -> None:
     """Render the instance files if needed and start n8n."""
-    console.print("[cyan]Starting n8n and waiting for the editor...[/cyan]")
+    console.print("[cyan]Starting n8n and waiting for the web UI...[/cyan]")
     try:
         result = up_instance(instance_name=instance, port=port)
     except LonError as error:
@@ -105,7 +105,7 @@ def start(
 def restart(
     instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
 ) -> None:
-    """Restart n8n and wait for the editor."""
+    """Restart n8n and wait for the web UI."""
     console.print("[cyan]Checking n8n container and restarting...[/cyan]")
     try:
         result = restart_instance(instance_name=instance)
@@ -131,7 +131,7 @@ def status(
     table.add_column("Value")
     table.add_row("URL", result.url)
     table.add_row("Container", result.container_state)
-    table.add_row("Editor", result.editor_state)
+    table.add_row("Web UI", result.web_ui_state)
     table.add_row("Volume", result.volume_name)
     table.add_row("Compose", str(result.compose_path))
     console.print(table)
@@ -181,8 +181,8 @@ def logs(
 def open(
     instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
 ) -> None:
-    """Open the n8n editor URL in a browser if possible."""
-    console.print("[cyan]Opening n8n editor...[/cyan]")
+    """Open the n8n web UI URL in a browser if possible."""
+    console.print("[cyan]Opening n8n web UI...[/cyan]")
     try:
         result = open_instance(instance_name=instance)
     except LonError as error:

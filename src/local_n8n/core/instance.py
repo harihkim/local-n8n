@@ -21,7 +21,7 @@ from local_n8n.core.errors import (
     PrerequisiteError,
     StartupTimeoutError,
 )
-from local_n8n.core.readiness import is_editor_ready, wait_for_editor_ready
+from local_n8n.core.readiness import is_web_ui_ready, wait_for_web_ui_ready
 from local_n8n.core.runner import CommandResult, run
 from local_n8n.core.state import InstanceRecord, StateStore, new_instance_record, utc_now
 
@@ -57,7 +57,7 @@ class StatusResult:
     compose_path: Path
     volume_name: str
     container_state: str
-    editor_state: str
+    web_ui_state: str
 
 
 @dataclass(frozen=True)
@@ -130,9 +130,9 @@ def up_instance(instance_name: str, port: int | None = None) -> UpResult:
             ],
         )
 
-        if not wait_for_editor_ready(url):
+        if not wait_for_web_ui_ready(url):
             raise StartupTimeoutError(
-                "n8n started, but the editor did not become reachable in time.",
+                "n8n started, but the web UI did not become reachable in time.",
                 hint=f"Check Docker logs, then try opening {url} again.",
             )
 
@@ -222,9 +222,9 @@ def start_instance(instance_name: str) -> StartResult:
             "start",
         ],
     )
-    if not wait_for_editor_ready(url):
+    if not wait_for_web_ui_ready(url):
         raise StartupTimeoutError(
-            "n8n started, but the editor did not become reachable in time.",
+            "n8n started, but the web UI did not become reachable in time.",
             hint=f"Check Docker logs, then try opening {url} again.",
         )
     return StartResult(url=url)
@@ -259,9 +259,9 @@ def restart_instance(instance_name: str) -> RestartResult:
             "restart",
         ],
     )
-    if not wait_for_editor_ready(url):
+    if not wait_for_web_ui_ready(url):
         raise StartupTimeoutError(
-            "n8n restarted, but the editor did not become reachable in time.",
+            "n8n restarted, but the web UI did not become reachable in time.",
             hint=f"Check Docker logs, then try opening {url} again.",
         )
     return RestartResult(url=url)
@@ -278,14 +278,14 @@ def status_instance(instance_name: str) -> StatusResult:
         image_ref=record.image_ref,
     )
     container_state, _health = _compose_container_status(config)
-    editor_state = _editor_state(f"http://localhost:{record.port}", container_state)
+    web_ui_state = _web_ui_state(f"http://localhost:{record.port}", container_state)
     return StatusResult(
         name=record.name,
         url=f"http://localhost:{record.port}",
         compose_path=config.compose_path,
         volume_name=config.volume_name,
         container_state=container_state,
-        editor_state=editor_state,
+        web_ui_state=web_ui_state,
     )
 
 
@@ -444,10 +444,10 @@ def _compose_container_status(config: InstanceConfig) -> tuple[str, str | None]:
     return _parse_compose_ps(result.stdout)
 
 
-def _editor_state(url: str, container_state: str) -> str:
+def _web_ui_state(url: str, container_state: str) -> str:
     if container_state != "running":
         return "not reachable"
-    return "reachable" if is_editor_ready(url) else "not reachable"
+    return "reachable" if is_web_ui_ready(url) else "not reachable"
 
 
 def _open_commands(url: str) -> list[list[str]]:

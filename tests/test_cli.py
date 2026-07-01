@@ -20,12 +20,12 @@ def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 
     assert result.exit_code == 0
-    assert "Starting n8n and waiting for the editor" in result.stderr
+    assert "Starting n8n and waiting for the web UI" in result.stderr
     assert "n8n is running" in result.stderr
 
 
@@ -38,7 +38,7 @@ def test_cli_up_friendly_error_without_traceback(
         raise FileNotFoundError("docker")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 
@@ -97,7 +97,7 @@ def test_cli_start_fails_fast_when_container_is_not_present(
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["start"])
 
@@ -120,7 +120,7 @@ def test_cli_restart_fails_fast_when_container_is_not_present(
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["restart"])
 
@@ -139,7 +139,7 @@ def test_cli_status_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.is_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["status"])
 
@@ -159,7 +159,7 @@ def test_cli_verbose_prints_diagnostics(tmp_path: Path, monkeypatch: pytest.Monk
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.is_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["--verbose", "status"])
 

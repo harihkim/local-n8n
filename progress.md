@@ -18,7 +18,7 @@ Phase 1 branch: lifecycle commands, SQLite state registry, and read-only `doctor
 - Pin the Phase 0 n8n image to the verified multi-arch digest:
   `docker.n8n.io/n8nio/n8n:1.113.3@sha256:57f95a26b1b28527053fba6316d9d046395d9b4da9d0da486e838384a38fcf37`.
 - Added friendly error mapping for missing Docker, daemon-not-running, port-in-use, and generic Compose failures.
-- Added HTTP readiness polling so `lon up` prints success only after the n8n editor responds.
+- Added HTTP readiness polling so `lon up` prints success only after the n8n web UI responds.
 - Added a startup progress message so `lon up` does not look hung while n8n is booting.
 - Added a shutdown progress message so `lon down` does not look idle while Docker stops the container.
 - Added a SQLite `state.db` registry with WAL mode and `busy_timeout`.
@@ -62,14 +62,14 @@ Fix: changed the mapping to:
 
 ### `lon up` reported success before n8n was actually ready
 
-`docker compose up -d` returns once the container starts, not once the n8n web editor is serving requests.
+`docker compose up -d` returns once the container starts, not once the n8n web UI is serving requests.
 This caused a short window where the CLI said n8n was running but the browser still showed connection errors.
 
 Fix: added readiness polling against `http://localhost:<port>/` before printing the success message.
 Also added a visible startup line before the blocking wait:
 
 ```text
-Starting n8n and waiting for the editor...
+Starting n8n and waiting for the web UI...
 ```
 
 ### Commands with possible waits need progress messages
@@ -121,16 +121,17 @@ called out in `plan.md`; it was added as Phase 1 UX polish.
 Follow-up polish: when instances are listed, the CLI now suggests
 `lon status --instance <name>` for more detail.
 
-### Docker health was not useful for n8n editor readiness
+### Docker health was not useful for n8n web UI readiness
 
 `lon status` displayed `Health: -` because the generated Compose service does not define a Docker
 healthcheck, so Docker has no health value to report. That field was misleading.
 
 Fixes:
 
-- Replaced `Health` with `Editor` in `lon status`.
-- `Editor` reports `reachable` / `not reachable` using the same editor-specific readiness probe as `lon up`.
+- Replaced `Health` with `Web UI` in `lon status`.
+- `Web UI` reports `reachable` / `not reachable` using the same n8n web UI readiness probe as `lon up`.
 - Strengthened readiness so a generic HTTP response like `Cannot GET /` is not accepted as ready.
+- Treated n8n's first-run `/setup` redirect as ready, because setup/login/editor are all valid n8n web UI states.
 - Added `--verbose` debug output to make readiness and Docker command behavior easier to diagnose.
 
 ### Persistent CLI logs are still a separate decision

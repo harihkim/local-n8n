@@ -35,7 +35,7 @@ def test_up_instance_renders_and_runs_docker_compose(
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = up_instance("default", port=5678)
 
@@ -68,7 +68,7 @@ def test_up_instance_maps_missing_docker_to_prerequisite_error(
         raise FileNotFoundError("docker")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     with pytest.raises(PrerequisiteError) as exc_info:
         up_instance("default")
@@ -88,7 +88,7 @@ def test_up_instance_maps_port_conflict(tmp_path: Path, monkeypatch: pytest.Monk
         )
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     with pytest.raises(PortInUseError) as exc_info:
         up_instance("default")
@@ -103,7 +103,7 @@ def test_instance_name_is_validated(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         up_instance("../bad")
 
 
-def test_up_instance_waits_for_editor_before_returning(
+def test_up_instance_waits_for_web_ui_before_returning(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
@@ -117,7 +117,7 @@ def test_up_instance_waits_for_editor_before_returning(
         return True
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", fake_wait)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", fake_wait)
 
     up_instance("default", port=5680)
 
@@ -138,7 +138,7 @@ def test_up_instance_adopts_existing_phase_zero_env_port(
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = up_instance("default")
 
@@ -163,12 +163,12 @@ def test_status_instance_parses_compose_json(
         )
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.is_editor_ready", lambda url: True)
+    monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = status_instance("default")
 
     assert result.container_state == "running"
-    assert result.editor_state == "reachable"
+    assert result.web_ui_state == "reachable"
     assert "--all" in calls[0]
 
 
@@ -277,7 +277,7 @@ def test_restart_instance_fails_fast_when_container_is_not_created(
         return True
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", fake_wait)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", fake_wait)
 
     with pytest.raises(LonError) as exc_info:
         restart_instance("default")
@@ -304,7 +304,7 @@ def test_start_instance_fails_fast_when_container_is_not_present(
         return True
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
-    monkeypatch.setattr("local_n8n.core.instance.wait_for_editor_ready", fake_wait)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", fake_wait)
 
     with pytest.raises(LonError) as exc_info:
         start_instance("default")
