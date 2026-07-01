@@ -99,6 +99,10 @@ Fixes:
 - `lon start` was added to start an existing stopped container.
 - Added unit tests at both core and CLI levels for the down/restart/start edge cases.
 
+Follow-up manual testing exposed that `docker compose ps --format json` omits stopped containers unless
+`--all` is passed, so a container stopped by `lon stop` looked `not present`. Fixed by using
+`docker compose ps --all --format json` for status/list checks and added a regression test.
+
 ### Unplanned convenience: instance listing
 
 `plan.md` Phase 1 listed `status/logs/restart/open`, but manual testing with multiple instances made it
@@ -112,6 +116,9 @@ lon list
 
 It renders registered instances with name, URL, container state, and volume. This feature was not explicitly
 called out in `plan.md`; it was added as Phase 1 UX polish.
+
+Follow-up polish: when instances are listed, the CLI now suggests
+`lon status --instance <name>` for more detail.
 
 ## Verification
 

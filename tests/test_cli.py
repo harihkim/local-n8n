@@ -171,6 +171,7 @@ def test_cli_list_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert result.exit_code == 0
     assert "manual-check" in result.stderr
     assert "running" in result.stderr
+    assert "Use `lon status --instance <name>` for details." in result.stderr
 
 
 def test_cli_list_empty_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -180,6 +181,7 @@ def test_cli_list_empty_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
     assert result.exit_code == 0
     assert "No local-n8n instances yet" in result.stderr
+    assert "Use `lon status --instance <name>`" not in result.stderr
 
 
 def test_cli_doctor_failure_exits_with_check_code(monkeypatch: pytest.MonkeyPatch) -> None:

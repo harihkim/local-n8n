@@ -148,6 +148,7 @@ def list_command() -> None:
     for result in results:
         table.add_row(result.name, result.url, result.container_state, result.volume_name)
     console.print(table)
+    console.print("[dim]Use `lon status --instance <name>` for details.[/dim]")
 
 
 @app.command()

@@ -151,8 +151,10 @@ def test_status_instance_parses_compose_json(
 ) -> None:
     monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
     _write_phase_zero_compose(tmp_path)
+    calls: list[list[str]] = []
 
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        calls.append(args)
         return CommandResult(
             args=args,
             returncode=0,
@@ -166,6 +168,23 @@ def test_status_instance_parses_compose_json(
 
     assert result.container_state == "running"
     assert result.health == "healthy"
+    assert "--all" in calls[0]
+
+
+def test_status_instance_includes_stopped_containers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout='[{"State":"exited"}]', stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = status_instance("default")
+
+    assert result.container_state == "exited"
 
 
 def test_status_instance_reports_missing_container_as_not_present(

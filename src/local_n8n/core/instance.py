@@ -426,6 +426,7 @@ def _compose_container_status(config: InstanceConfig) -> tuple[str, str | None]:
             "-f",
             str(config.compose_path),
             "ps",
+            "--all",
             "--format",
             "json",
         ],
