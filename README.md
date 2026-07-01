@@ -1,0 +1,29 @@
+# local-n8n (`lon`)
+
+`lon` is a CLI for running a local self-hosted n8n instance with a path toward encrypted, portable backups.
+
+Phase 0 is intentionally small: it renders a Docker Compose project and starts or stops n8n. It does not
+install Docker, create a registry database, manage Windows bootstrap, configure tunnels, or create encrypted
+backups yet.
+
+## Requirements
+
+- Python 3.13
+- `uv`
+- Docker Engine available in the development environment
+
+On Windows, develop and run the CLI inside WSL Ubuntu. Automatic WSL/Docker provisioning is post-MVP.
+
+## Usage
+
+```bash
+uv run lon up
+uv run lon down
+```
+
+`lon up` writes instance files under `~/.config/local-n8n/instances/default/` unless
+`LOCAL_N8N_HOME` is set. It generates `.env` once, stores a fixed `N8N_ENCRYPTION_KEY`, sets the file to
+mode `0600`, and does not overwrite that key on later runs.
+
+The Phase 0 default n8n image is pinned in code for this CLI release. Because Phase 0 has no `lon update`
+command, moving to a newer n8n image requires a newer `lon` build or an explicit code/config change.
