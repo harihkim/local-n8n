@@ -42,6 +42,7 @@ def down(
     instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
 ) -> None:
     """Stop n8n while keeping the Docker volume."""
+    console.print("[cyan]Stopping n8n and keeping the data volume...[/cyan]")
     try:
         result = down_instance(instance_name=instance)
     except LonError as error:

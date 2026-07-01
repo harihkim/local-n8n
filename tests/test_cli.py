@@ -43,3 +43,18 @@ def test_cli_up_friendly_error_without_traceback(
     assert result.exit_code == 10
     assert "Docker was not found" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+def test_cli_down_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = runner.invoke(app, ["down"])
+
+    assert result.exit_code == 0
+    assert "Stopping n8n and keeping the data volume" in result.stderr
+    assert "n8n stopped" in result.stderr

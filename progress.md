@@ -20,6 +20,7 @@ Phase 0: minimal `lon` CLI that renders Docker Compose, writes `.env`, and start
 - Added friendly error mapping for missing Docker, daemon-not-running, port-in-use, and generic Compose failures.
 - Added HTTP readiness polling so `lon up` prints success only after the n8n editor responds.
 - Added a startup progress message so `lon up` does not look hung while n8n is booting.
+- Added a shutdown progress message so `lon down` does not look idle while Docker stops the container.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, and readiness polling.
 
 ## Unexpected issues and fixes
@@ -65,6 +66,19 @@ Also added a visible startup line before the blocking wait:
 ```text
 Starting n8n and waiting for the editor...
 ```
+
+### Commands with possible waits need progress messages
+
+`lon down` can also take a moment while Docker stops the container.
+
+Fix: added a visible shutdown line:
+
+```text
+Stopping n8n and keeping the data volume...
+```
+
+Going forward, commands that can block on Docker, network, restore, backup, or external tools should print
+a short progress update before the wait begins.
 
 ## Verification
 
