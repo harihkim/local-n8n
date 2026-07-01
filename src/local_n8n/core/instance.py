@@ -24,6 +24,8 @@ from local_n8n.core.readiness import wait_for_http_ready
 from local_n8n.core.runner import CommandResult, run
 from local_n8n.core.state import InstanceRecord, StateStore, new_instance_record, utc_now
 
+CONTAINER_NOT_PRESENT = "not present"
+
 
 @dataclass(frozen=True)
 class UpResult:
@@ -35,6 +37,16 @@ class UpResult:
 @dataclass(frozen=True)
 class DownResult:
     volume_name: str
+
+
+@dataclass(frozen=True)
+class StopResult:
+    volume_name: str
+
+
+@dataclass(frozen=True)
+class StartResult:
+    url: str
 
 
 @dataclass(frozen=True)
@@ -145,6 +157,67 @@ def down_instance(instance_name: str) -> DownResult:
     return DownResult(volume_name=config.volume_name)
 
 
+def stop_instance(instance_name: str) -> StopResult:
+    with StateStore.open_default() as state:
+        record = _get_or_adopt_instance(state, instance_name)
+    config = build_instance_config(
+        instance_name,
+        record.port,
+        data_volume=record.data_volume,
+        image_ref=record.image_ref,
+    )
+    _run_compose(
+        config.instance_dir,
+        [
+            "docker",
+            "compose",
+            "-p",
+            config.project_name,
+            "-f",
+            str(config.compose_path),
+            "stop",
+        ],
+    )
+    return StopResult(volume_name=config.volume_name)
+
+
+def start_instance(instance_name: str) -> StartResult:
+    with StateStore.open_default() as state:
+        record = _get_or_adopt_instance(state, instance_name)
+    config = build_instance_config(
+        instance_name,
+        record.port,
+        data_volume=record.data_volume,
+        image_ref=record.image_ref,
+    )
+    url = f"http://localhost:{record.port}"
+    container_state, _health = _compose_container_status(config)
+    if container_state == CONTAINER_NOT_PRESENT:
+        raise LonError(
+            f"Instance {instance_name!r} is down; there is no container to start.",
+            hint=f"Run `lon up --instance {instance_name}` to create and start it.",
+        )
+
+    _run_compose(
+        config.instance_dir,
+        [
+            "docker",
+            "compose",
+            "-p",
+            config.project_name,
+            "-f",
+            str(config.compose_path),
+            "start",
+        ],
+    )
+    if not wait_for_http_ready(url):
+        raise StartupTimeoutError(
+            "n8n started, but the editor did not become reachable in time.",
+            hint=f"Check Docker logs, then try opening {url} again.",
+        )
+    return StartResult(url=url)
+
+
 def restart_instance(instance_name: str) -> RestartResult:
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name)
@@ -156,7 +229,7 @@ def restart_instance(instance_name: str) -> RestartResult:
     )
     url = f"http://localhost:{record.port}"
     container_state, _health = _compose_container_status(config)
-    if container_state == "not created":
+    if container_state == CONTAINER_NOT_PRESENT:
         raise LonError(
             f"Instance {instance_name!r} is down; there is no container to restart.",
             hint=f"Run `lon up --instance {instance_name}` to create and start it.",
@@ -288,7 +361,7 @@ def _read_port_from_env(env_path: Path) -> int | None:
 def _parse_compose_ps(output: str) -> tuple[str, str | None]:
     stripped = output.strip()
     if not stripped:
-        return ("not created", None)
+        return (CONTAINER_NOT_PRESENT, None)
 
     rows: list[object]
     try:
@@ -298,7 +371,7 @@ def _parse_compose_ps(output: str) -> tuple[str, str | None]:
         rows = [json.loads(line) for line in stripped.splitlines() if line.strip()]
 
     if not rows:
-        return ("not created", None)
+        return (CONTAINER_NOT_PRESENT, None)
 
     first = rows[0]
     if not isinstance(first, dict):

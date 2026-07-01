@@ -11,7 +11,9 @@ from local_n8n.core.instance import (
     logs_instance,
     open_instance,
     restart_instance,
+    start_instance,
     status_instance,
+    stop_instance,
     up_instance,
 )
 
@@ -50,14 +52,42 @@ def up(
 def down(
     instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
 ) -> None:
-    """Stop n8n while keeping the Docker volume."""
-    console.print("[cyan]Stopping n8n and keeping the data volume...[/cyan]")
+    """Remove the n8n container while keeping the Docker volume."""
+    console.print("[cyan]Removing n8n container and keeping the data volume...[/cyan]")
     try:
         result = down_instance(instance_name=instance)
     except LonError as error:
         _handle_error(error)
 
-    console.print(f"[green]n8n stopped.[/green] Volume kept: {result.volume_name}")
+    console.print(f"[green]n8n container removed.[/green] Volume kept: {result.volume_name}")
+
+
+@app.command()
+def stop(
+    instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
+) -> None:
+    """Stop n8n while keeping the container and Docker volume."""
+    console.print("[cyan]Stopping n8n container and keeping it available for start...[/cyan]")
+    try:
+        result = stop_instance(instance_name=instance)
+    except LonError as error:
+        _handle_error(error)
+
+    console.print(f"[green]n8n stopped.[/green] Container kept. Volume kept: {result.volume_name}")
+
+
+@app.command()
+def start(
+    instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
+) -> None:
+    """Start an existing stopped n8n container."""
+    console.print("[cyan]Checking n8n container and starting...[/cyan]")
+    try:
+        result = start_instance(instance_name=instance)
+    except LonError as error:
+        _handle_error(error)
+
+    console.print(f"[green]n8n started:[/green] {result.url}")
 
 
 @app.command()

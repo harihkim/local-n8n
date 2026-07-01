@@ -60,8 +60,72 @@ def test_cli_down_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     result = runner.invoke(app, ["down"])
 
     assert result.exit_code == 0
-    assert "Stopping n8n and keeping the data volume" in result.stderr
-    assert "n8n stopped" in result.stderr
+    assert "Removing n8n container and keeping the data volume" in result.stderr
+    assert "n8n container removed" in result.stderr
+
+
+def test_cli_stop_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = runner.invoke(app, ["stop"])
+
+    assert result.exit_code == 0
+    assert "Stopping n8n container" in result.stderr
+    assert "Container kept" in result.stderr
+
+
+def test_cli_start_fails_fast_when_container_is_not_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout="", stderr="")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
+
+    result = runner.invoke(app, ["start"])
+
+    assert result.exit_code == 1
+    assert "no container to start" in result.stderr
+    assert "Run `lon up --instance default`" in result.stderr
+
+
+def test_cli_restart_fails_fast_when_container_is_not_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout="", stderr="")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
+
+    result = runner.invoke(app, ["restart"])
+
+    assert result.exit_code == 1
+    assert "no container to restart" in result.stderr
+    assert "Run `lon up --instance default`" in result.stderr
 
 
 def test_cli_status_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

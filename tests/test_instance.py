@@ -11,7 +11,14 @@ from local_n8n.core.errors import (
     PrerequisiteError,
     UsageError,
 )
-from local_n8n.core.instance import logs_instance, restart_instance, status_instance, up_instance
+from local_n8n.core.instance import (
+    logs_instance,
+    restart_instance,
+    start_instance,
+    status_instance,
+    stop_instance,
+    up_instance,
+)
 from local_n8n.core.runner import CommandResult
 
 
@@ -159,6 +166,22 @@ def test_status_instance_parses_compose_json(
     assert result.health == "healthy"
 
 
+def test_status_instance_reports_missing_container_as_not_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = status_instance("default")
+
+    assert result.container_state == "not present"
+
+
 def test_logs_instance_returns_compose_logs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -200,6 +223,50 @@ def test_restart_instance_fails_fast_when_container_is_not_created(
 
     assert "no container to restart" in exc_info.value.message
     assert not readiness_called
+
+
+def test_start_instance_fails_fast_when_container_is_not_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+    readiness_called = False
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout="", stderr="")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    def fake_wait(url: str) -> bool:
+        nonlocal readiness_called
+        readiness_called = True
+        return True
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", fake_wait)
+
+    with pytest.raises(LonError) as exc_info:
+        start_instance("default")
+
+    assert "no container to start" in exc_info.value.message
+    assert not readiness_called
+
+
+def test_stop_instance_uses_compose_stop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        calls.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = stop_instance("default")
+
+    assert result.volume_name == "n8n_default_data"
+    assert calls[-1][-1] == "stop"
 
 
 def test_status_instance_requires_existing_instance(

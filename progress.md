@@ -23,7 +23,7 @@ Phase 1 branch: lifecycle commands, SQLite state registry, and read-only `doctor
 - Added a shutdown progress message so `lon down` does not look idle while Docker stops the container.
 - Added a SQLite `state.db` registry with WAL mode and `busy_timeout`.
 - `lon up` now records/adopts instances in the registry while preserving existing Phase 0 `.env` files.
-- Added `lon status`, `lon logs`, `lon restart`, and `lon open`.
+- Added `lon status`, `lon logs`, `lon start`, `lon stop`, `lon restart`, and `lon open`.
 - Added read-only `lon doctor` diagnostics for platform, Docker CLI, Docker daemon, Docker Compose, and port availability.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
@@ -75,14 +75,29 @@ Starting n8n and waiting for the editor...
 
 `lon down` can also take a moment while Docker stops the container.
 
-Fix: added a visible shutdown line:
+Fix: added a visible shutdown line, then clarified the command after manual testing showed that `down`
+removes the container:
 
 ```text
-Stopping n8n and keeping the data volume...
+Removing n8n container and keeping the data volume...
 ```
 
 Going forward, commands that can block on Docker, network, restore, backup, or external tools should print
 a short progress update before the wait begins.
+
+### `down`, `stop`, `start`, and `restart` need distinct semantics
+
+Manual testing showed that `lon down` uses Docker Compose `down`, which removes the container while keeping
+the named data volume. Running `restart` after that appeared to hang because there was no container to
+restart and the CLI still waited for readiness.
+
+Fixes:
+
+- `lon status` now reports the empty Compose state as `not present` instead of `not created`.
+- `lon restart` fails fast when there is no container and tells the user to run `lon up`.
+- `lon stop` was added for the common expectation of stopping the container without removing it.
+- `lon start` was added to start an existing stopped container.
+- Added unit tests at both core and CLI levels for the down/restart/start edge cases.
 
 ## Verification
 
@@ -101,6 +116,7 @@ a short progress update before the wait begins.
 - Read-only/lifecycle commands adopt an existing Phase 0 instance only when instance files already exist.
   They do not silently create a brand-new registry row.
 - `lon up` remains the creation path for Phase 1.
+- `lon down` removes the container/network but keeps the volume; `lon stop` keeps the container present.
 - `doctor` is intentionally read-only. It reports problems and hints, but does not install or change anything.
 
 ## Next phase
