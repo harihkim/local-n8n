@@ -18,10 +18,12 @@ def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 
     assert result.exit_code == 0
+    assert "Starting n8n and waiting for the editor" in result.stderr
     assert "n8n is running" in result.stderr
 
 
@@ -34,6 +36,7 @@ def test_cli_up_friendly_error_without_traceback(
         raise FileNotFoundError("docker")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 

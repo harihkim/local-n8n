@@ -27,6 +27,7 @@ def up(
     port: int = typer.Option(5678, "--port", "-p", help="Host port for n8n."),
 ) -> None:
     """Render the instance files if needed and start n8n."""
+    console.print("[cyan]Starting n8n and waiting for the editor...[/cyan]")
     try:
         result = up_instance(instance_name=instance, port=port)
     except LonError as error:

@@ -9,7 +9,9 @@ from local_n8n.core.errors import (
     CommandFailedError,
     PortInUseError,
     PrerequisiteError,
+    StartupTimeoutError,
 )
+from local_n8n.core.readiness import wait_for_http_ready
 from local_n8n.core.runner import CommandResult, run
 
 
@@ -28,6 +30,7 @@ class DownResult:
 def up_instance(instance_name: str, port: int = 5678) -> UpResult:
     config = build_instance_config(instance_name, port)
     ensure_instance_files(config)
+    url = f"http://localhost:{port}"
 
     _run_compose(
         config.instance_dir,
@@ -42,8 +45,15 @@ def up_instance(instance_name: str, port: int = 5678) -> UpResult:
             "-d",
         ],
     )
+
+    if not wait_for_http_ready(url):
+        raise StartupTimeoutError(
+            "n8n started, but the editor did not become reachable in time.",
+            hint=f"Check Docker logs, then try opening {url} again.",
+        )
+
     return UpResult(
-        url=f"http://localhost:{port}",
+        url=url,
         compose_path=config.compose_path,
         volume_name=config.volume_name,
     )

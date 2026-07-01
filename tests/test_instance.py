@@ -20,6 +20,7 @@ def test_up_instance_renders_and_runs_docker_compose(
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
 
     result = up_instance("default", port=5678)
 
@@ -51,6 +52,7 @@ def test_up_instance_maps_missing_docker_to_prerequisite_error(
         raise FileNotFoundError("docker")
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
 
     with pytest.raises(PrerequisiteError) as exc_info:
         up_instance("default")
@@ -70,6 +72,7 @@ def test_up_instance_maps_port_conflict(tmp_path: Path, monkeypatch: pytest.Monk
         )
 
     monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", lambda url: True)
 
     with pytest.raises(PortInUseError) as exc_info:
         up_instance("default")
@@ -82,3 +85,24 @@ def test_instance_name_is_validated(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     with pytest.raises(UsageError):
         up_instance("../bad")
+
+
+def test_up_instance_waits_for_editor_before_returning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    ready_urls: list[str] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    def fake_wait(url: str) -> bool:
+        ready_urls.append(url)
+        return True
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_http_ready", fake_wait)
+
+    up_instance("default", port=5680)
+
+    assert ready_urls == ["http://localhost:5680"]

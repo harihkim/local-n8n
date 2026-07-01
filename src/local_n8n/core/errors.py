@@ -31,3 +31,7 @@ class FileWriteError(LonError):
 
 class CommandFailedError(LonError):
     pass
+
+
+class StartupTimeoutError(LonError):
+    pass
