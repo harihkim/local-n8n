@@ -5,11 +5,17 @@ import platform
 from dataclasses import dataclass
 from pathlib import Path
 
-from local_n8n.compose.template import DEFAULT_IMAGE_REF, ensure_instance_files, read_env_value
+from local_n8n.compose.template import (
+    DEFAULT_IMAGE_REF,
+    InstanceConfig,
+    ensure_instance_files,
+    read_env_value,
+)
 from local_n8n.core.config import build_instance_config
 from local_n8n.core.errors import (
     CommandFailedError,
     InstanceNotFoundError,
+    LonError,
     PortInUseError,
     PrerequisiteError,
     StartupTimeoutError,
@@ -149,6 +155,13 @@ def restart_instance(instance_name: str) -> RestartResult:
         image_ref=record.image_ref,
     )
     url = f"http://localhost:{record.port}"
+    container_state, _health = _compose_container_status(config)
+    if container_state == "not created":
+        raise LonError(
+            f"Instance {instance_name!r} is down; there is no container to restart.",
+            hint=f"Run `lon up --instance {instance_name}` to create and start it.",
+        )
+
     _run_compose(
         config.instance_dir,
         [
@@ -178,21 +191,7 @@ def status_instance(instance_name: str) -> StatusResult:
         data_volume=record.data_volume,
         image_ref=record.image_ref,
     )
-    result = _run_compose(
-        config.instance_dir,
-        [
-            "docker",
-            "compose",
-            "-p",
-            config.project_name,
-            "-f",
-            str(config.compose_path),
-            "ps",
-            "--format",
-            "json",
-        ],
-    )
-    container_state, health = _parse_compose_ps(result.stdout)
+    container_state, health = _compose_container_status(config)
     return StatusResult(
         name=record.name,
         url=f"http://localhost:{record.port}",
@@ -308,6 +307,24 @@ def _parse_compose_ps(output: str) -> tuple[str, str | None]:
     state = str(first.get("State") or first.get("Status") or "unknown")
     health = first.get("Health")
     return (state, str(health) if health is not None else None)
+
+
+def _compose_container_status(config: InstanceConfig) -> tuple[str, str | None]:
+    result = _run_compose(
+        config.instance_dir,
+        [
+            "docker",
+            "compose",
+            "-p",
+            config.project_name,
+            "-f",
+            str(config.compose_path),
+            "ps",
+            "--format",
+            "json",
+        ],
+    )
+    return _parse_compose_ps(result.stdout)
 
 
 def _open_commands(url: str) -> list[list[str]]:

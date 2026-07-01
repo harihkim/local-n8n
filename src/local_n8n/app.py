@@ -65,7 +65,7 @@ def restart(
     instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
 ) -> None:
     """Restart n8n and wait for the editor."""
-    console.print("[cyan]Restarting n8n and waiting for the editor...[/cyan]")
+    console.print("[cyan]Checking n8n container and restarting...[/cyan]")
     try:
         result = restart_instance(instance_name=instance)
     except LonError as error:
