@@ -293,8 +293,8 @@ the passphrase + emit recovery slots.
 | `lon logs [-f]` | stream container logs |
 | `lon update` | **(post-MVP)** **auto-`backup` first** (skippable with `--no-backup`) since image updates may run DB migrations; then pull newer image, recreate, record version |
 | `lon open` | open the editor URL in a browser — tries `wslview` → `powershell.exe Start-Process` (WSL) → `xdg-open` (Linux) → `open` (macOS); **prints the URL when no opener is available** |
-| `lon backup [--push <remote>] [--with-exports]` | **full-instance** encrypted bundle (whole `.n8n` volume). **First run sets the backup passphrase + shows the recovery code once** and prints the recovery rule verbatim (*keep at least one of {a working instance, an openable bundle}*; §10). Record in SQLite; optional remote push + git-friendly logical exports |
-| `lon restore <bundle \| --from-remote> [--replace]` | ensure prereqs → decrypt → rehydrate **full volume** + key + base URL → `up`. **Refuses to overwrite an existing instance unless `--replace`** (which snapshots current state first) |
+| `lon backup [--push <remote>] [--with-exports]` | **full-instance** encrypted bundle (whole `.n8n` volume). **Warns about the brief n8n downtime before quiescing** — backup stops n8n for a consistent snapshot (§12), so it prompts before stopping (proceeds on confirm or `--yes`); matters most once inbound webhooks land (missed events during the window). **First run sets the backup passphrase + shows the recovery code once** and prints the recovery rule verbatim (*keep at least one of {a working instance, an openable bundle}*; §10). Record in SQLite; optional remote push + git-friendly logical exports |
+| `lon restore <bundle \| --from-remote> [--replace]` | ensure prereqs (incl. **pulling the pinned image** — needs registry access, §12) → decrypt → rehydrate **full volume** + key + base URL → `up`. **Refuses to overwrite an existing instance unless `--replace`** (which snapshots current state first, sealed with the **existing** instance's unlock material — §16) |
 | `lon remote add\|list\|remove` | **(post-MVP)** configure git / s3 / folder remote |
 | `lon tunnel start\|stop\|status` | **(post-MVP)** bring up/down public URL (ngrok default / n8n `--tunnel` / cloudflared); wire `WEBHOOK_URL`+`N8N_EDITOR_BASE_URL`+`N8N_PROXY_HOPS` (re-secure cookie on HTTPS); print OAuth redirect URL to register |
 | `lon config get\|set` | **(post-MVP)** settings incl. `cache-passphrase`, default port, image tag, base URL, tunnel provider, `ngrok-authtoken` |
@@ -546,6 +546,13 @@ is **0600** to satisfy `N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS`. Do not rely on h
   **forward migrations** — allowed only with **`--upgrade`**, which targets the **current `lon` release's
   pinned `tag@digest`** (not an arbitrary user-supplied version); restoring into an **older** image is
   **refused** (n8n has no down-migrations). `bundle_schema` in the manifest guards our own format changes.
+- **Offline / registry-unavailable restore:** the bundle carries the full `.n8n` volume + `.env` + compose
+  + manifest but **not the n8n image itself**, so `restore` must **pull the pinned `tag@digest` from the
+  registry** — it is therefore **not fully offline** and fails clearly (exit `10`) if the registry or that
+  digest is unavailable. Mitigations: pre-pull the image on the target, or the **optional image export**
+  (`docker save` the pinned image alongside the bundle, restored via `docker load`) — **planned post-MVP**,
+  off by default (it bloats the bundle by the image size). Restore's prereq check surfaces this before doing
+  any work. So "moves to any device intact" assumes the target can obtain the pinned image.
 - **ID collisions on logical import:** warn that same-ID workflows/credentials overwrite (full-volume
   restore avoids this entirely).
 - **No keychain (headless WSL):** `cache-passphrase` silently falls back to prompting.
@@ -620,7 +627,10 @@ Reproduce the entire instance on any machine from one encrypted file. The MVP-cr
 (prove backup→wipe→restore); **3d** (the standalone `recovery`/`passphrase` **admin** commands) is the
 **designated fast-follow** — it lands right after the core loop is green and does **not** gate the
 portability proof, since `backup`/`restore` already create recovery slots + set the first-run passphrase in
-3b/3c. Split so each slice is independently testable; don't advance until its checkpoint is green.
+3b/3c. Split so each slice is independently testable; don't advance until its checkpoint is green. **This is
+the largest phase — decompose 3a–3d into a dedicated task board of small implementation tickets** (crypto
+framing, each slot type, quiesce/`finally`, volume tar, manifest/hashes, `--replace` guard, version policy,
+permission fix-up, …) rather than four big commits.
 
 **3a — Crypto core (`core/crypto.py` — library only, no CLI, no persistence):** envelope + multi-slot,
 framing, AAD, canonical JSON, the fixed constants (§6.1); slot wrap/unwrap for passphrase + recovery KEKs.
@@ -768,7 +778,11 @@ Hard rules every phase must uphold; unit tests assert them.
   1. Extract + validate the bundle into a **temp staging dir**, then load it into a **new generation
      volume** `n8n_<name>_data.g<N+1>` (helper-container `tar --numeric-owner`, `config`→0600).
   2. `--replace`: first snapshot the current instance as a **normal encrypted bundle** into `backups/`
-     (same crypto path, recorded in `state.db`) — rollback material is encrypted, not loose files.
+     (same crypto path, recorded in `state.db`) — rollback material is encrypted, not loose files. **The
+     snapshot is sealed with the *existing* instance's unlock material** (its passphrase + `recovery.wrapped`),
+     **never** the incoming bundle's — it's rollback for *this* instance, so it must open with what the user
+     already holds for it. If the instance has **never** been backed up, run the first-backup
+     passphrase/recovery setup (§11 backup) before the snapshot proceeds.
   3. **Swap** only after validation: stop the container, set `state.db.data_volume = …g<N+1>`, re-render
      compose, `up`. The swap is a single committed pointer change.
   4. **On any failure:** discard the staging dir + new-generation volume; `data_volume` still points at the
