@@ -26,6 +26,7 @@ Phase 1 also includes:
 
 ```bash
 uv run lon status
+uv run lon list
 uv run lon logs
 uv run lon start
 uv run lon restart
@@ -36,6 +37,7 @@ uv run lon doctor
 Lifecycle semantics:
 
 - `lon up`: create or recreate the Compose container and start n8n.
+- `lon list`: list registered instances with URL, container status, and volume.
 - `lon stop`: stop the existing container but keep it present, so `lon start` can resume it.
 - `lon start`: start an existing stopped container; if `lon down` removed it, use `lon up`.
 - `lon restart`: restart an existing container; if `lon down` removed it, use `lon up`.

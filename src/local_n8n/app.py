@@ -8,6 +8,7 @@ from local_n8n.core.doctor import run_doctor
 from local_n8n.core.errors import LonError
 from local_n8n.core.instance import (
     down_instance,
+    list_instances,
     logs_instance,
     open_instance,
     restart_instance,
@@ -123,6 +124,29 @@ def status(
     table.add_row("Health", result.health or "-")
     table.add_row("Volume", result.volume_name)
     table.add_row("Compose", str(result.compose_path))
+    console.print(table)
+
+
+@app.command("list")
+def list_command() -> None:
+    """List registered local-n8n instances."""
+    console.print("[cyan]Listing local-n8n instances...[/cyan]")
+    try:
+        results = list_instances()
+    except LonError as error:
+        _handle_error(error)
+
+    if not results:
+        console.print("[yellow]No local-n8n instances yet. Run `lon up` to create one.[/yellow]")
+        return
+
+    table = Table(title="local-n8n instances")
+    table.add_column("Name")
+    table.add_column("URL")
+    table.add_column("Container")
+    table.add_column("Volume")
+    for result in results:
+        table.add_row(result.name, result.url, result.container_state, result.volume_name)
     console.print(table)
 
 

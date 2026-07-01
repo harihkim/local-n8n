@@ -60,6 +60,14 @@ class StatusResult:
 
 
 @dataclass(frozen=True)
+class InstanceListItem:
+    name: str
+    url: str
+    container_state: str
+    volume_name: str
+
+
+@dataclass(frozen=True)
 class LogsResult:
     output: str
 
@@ -273,6 +281,31 @@ def status_instance(instance_name: str) -> StatusResult:
         container_state=container_state,
         health=health,
     )
+
+
+def list_instances() -> list[InstanceListItem]:
+    with StateStore.open_default() as state:
+        records = state.list_instances()
+
+    items: list[InstanceListItem] = []
+    for record in records:
+        config = build_instance_config(
+            record.name,
+            record.port,
+            data_volume=record.data_volume,
+            image_ref=record.image_ref,
+        )
+        container_state, _health = _compose_container_status(config)
+        items.append(
+            InstanceListItem(
+                name=record.name,
+                url=f"http://localhost:{record.port}",
+                container_state=container_state,
+                volume_name=config.volume_name,
+            )
+        )
+
+    return items
 
 
 def logs_instance(instance_name: str, follow: bool = False, tail: int = 100) -> LogsResult:

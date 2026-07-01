@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from local_n8n.app import app
 from local_n8n.core.doctor import DoctorCheck
 from local_n8n.core.runner import CommandResult
+from local_n8n.core.state import StateStore, new_instance_record
 
 runner = CliRunner()
 
@@ -144,6 +145,41 @@ def test_cli_status_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert result.exit_code == 0
     assert "Checking n8n status" in result.stderr
     assert "running" in result.stderr
+
+
+def test_cli_list_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="manual-check",
+                compose_path=tmp_path / "instances" / "manual-check" / "docker-compose.yml",
+                data_volume="n8n_manual-check_data",
+                port=5683,
+                enc_key_ref=tmp_path / "instances" / "manual-check" / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    result = runner.invoke(app, ["list"])
+
+    assert result.exit_code == 0
+    assert "manual-check" in result.stderr
+    assert "running" in result.stderr
+
+
+def test_cli_list_empty_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["list"])
+
+    assert result.exit_code == 0
+    assert "No local-n8n instances yet" in result.stderr
 
 
 def test_cli_doctor_failure_exits_with_check_code(monkeypatch: pytest.MonkeyPatch) -> None:

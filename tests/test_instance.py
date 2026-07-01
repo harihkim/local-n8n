@@ -12,6 +12,7 @@ from local_n8n.core.errors import (
     UsageError,
 )
 from local_n8n.core.instance import (
+    list_instances,
     logs_instance,
     restart_instance,
     start_instance,
@@ -20,6 +21,7 @@ from local_n8n.core.instance import (
     up_instance,
 )
 from local_n8n.core.runner import CommandResult
+from local_n8n.core.state import StateStore, new_instance_record
 
 
 def test_up_instance_renders_and_runs_docker_compose(
@@ -180,6 +182,45 @@ def test_status_instance_reports_missing_container_as_not_present(
     result = status_instance("default")
 
     assert result.container_state == "not present"
+
+
+def test_list_instances_returns_registered_instances_with_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="alpha",
+                compose_path=tmp_path / "instances" / "alpha" / "docker-compose.yml",
+                data_volume="n8n_alpha_data",
+                port=5680,
+                enc_key_ref=tmp_path / "instances" / "alpha" / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+        state.upsert_instance(
+            new_instance_record(
+                name="beta",
+                compose_path=tmp_path / "instances" / "beta" / "docker-compose.yml",
+                data_volume="n8n_beta_data",
+                port=5681,
+                enc_key_ref=tmp_path / "instances" / "beta" / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        state = "running" if "alpha" in str(cwd) else "exited"
+        return CommandResult(args=args, returncode=0, stdout=f'[{{"State":"{state}"}}]', stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+
+    results = list_instances()
+
+    assert [result.name for result in results] == ["alpha", "beta"]
+    assert [result.container_state for result in results] == ["running", "exited"]
+    assert results[0].url == "http://localhost:5680"
 
 
 def test_logs_instance_returns_compose_logs(

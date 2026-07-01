@@ -23,7 +23,7 @@ Phase 1 branch: lifecycle commands, SQLite state registry, and read-only `doctor
 - Added a shutdown progress message so `lon down` does not look idle while Docker stops the container.
 - Added a SQLite `state.db` registry with WAL mode and `busy_timeout`.
 - `lon up` now records/adopts instances in the registry while preserving existing Phase 0 `.env` files.
-- Added `lon status`, `lon logs`, `lon start`, `lon stop`, `lon restart`, and `lon open`.
+- Added `lon status`, `lon list`, `lon logs`, `lon start`, `lon stop`, `lon restart`, and `lon open`.
 - Added read-only `lon doctor` diagnostics for platform, Docker CLI, Docker daemon, Docker Compose, and port availability.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
@@ -98,6 +98,20 @@ Fixes:
 - `lon stop` was added for the common expectation of stopping the container without removing it.
 - `lon start` was added to start an existing stopped container.
 - Added unit tests at both core and CLI levels for the down/restart/start edge cases.
+
+### Unplanned convenience: instance listing
+
+`plan.md` Phase 1 listed `status/logs/restart/open`, but manual testing with multiple instances made it
+clear that users need a discovery command instead of remembering every `--instance` value.
+
+Added:
+
+```bash
+lon list
+```
+
+It renders registered instances with name, URL, container state, and volume. This feature was not explicitly
+called out in `plan.md`; it was added as Phase 1 UX polish.
 
 ## Verification
 
