@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -165,6 +166,103 @@ def test_cli_verbose_prints_diagnostics(tmp_path: Path, monkeypatch: pytest.Monk
 
     assert result.exit_code == 0
     assert "debug: verbose diagnostics enabled" in result.stderr
+
+
+def test_cli_json_status_writes_single_stdout_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
+
+    result = runner.invoke(app, ["--json", "status"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["command"] == "status"
+    assert payload["container"] == "running"
+    assert payload["web_ui"] == "reachable"
+    assert "Checking n8n status" in result.stderr
+
+
+def test_cli_json_error_writes_error_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--json", "status"])
+
+    assert result.exit_code == 13
+    payload = json.loads(result.stdout)
+    assert payload == {
+        "error": {
+            "exit_code": 13,
+            "hint": "Run `lon up` first to create it.",
+            "message": "Instance 'default' is not registered.",
+        },
+        "ok": False,
+    }
+    assert "Error:" in result.stderr
+
+
+def test_cli_dry_run_up_does_not_call_lifecycle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fail_up(instance_name: str, port: int | None = None) -> None:
+        raise AssertionError("up_instance should not be called during dry-run")
+
+    monkeypatch.setattr("local_n8n.app.up_instance", fail_up)
+
+    result = runner.invoke(app, ["--dry-run", "up", "--instance", "preview", "--port", "5688"])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would run: docker compose" in result.stderr
+    assert not (tmp_path / "instances").exists()
+    assert not (tmp_path / "state.db").exists()
+
+
+def test_cli_json_dry_run_up_outputs_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--json", "--dry-run", "up", "--instance", "preview"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["dry_run"] is True
+    assert payload["command"] == "up"
+    assert payload["instance"] == "preview"
+    assert payload["would"]["wait_for_web_ui"] is True
+    assert payload["would"]["docker_commands"][0][-2:] == ["up", "-d"]
+
+
+def test_cli_yes_global_flag_is_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
+
+    result = runner.invoke(app, ["--yes", "status"])
+
+    assert result.exit_code == 0
+    assert "Checking n8n status" in result.stderr
 
 
 def test_cli_list_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "local-n8n"
-version = "0.1.0"
+version = "0.1.0a1"
 description = "Cross-platform CLI for a local, portable, self-hosted n8n (lon)."
 readme = "README.md"
 requires-python = ">=3.13"

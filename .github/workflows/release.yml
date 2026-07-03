@@ -1,0 +1,51 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      - name: Lint
+        run: uv run --python 3.13 ruff check .
+
+      - name: Check formatting
+        run: uv run --python 3.13 ruff format --check .
+
+      - name: Type check
+        run: uv run --python 3.13 ty check
+
+      - name: Test
+        run: uv run --python 3.13 pytest tests
+
+      - name: Build wheel and source distribution
+        run: uv build --sdist --wheel
+
+      - name: Create GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" dist/*
+          --repo "$GITHUB_REPOSITORY"
+          --title "$GITHUB_REF_NAME"
+          --generate-notes
+          --prerelease

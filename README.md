@@ -14,6 +14,16 @@ backups yet.
 
 On Windows, develop and run the CLI inside WSL Ubuntu. Automatic WSL/Docker provisioning is post-MVP.
 
+## Install from GitHub
+
+After the first GitHub prerelease is tagged, install with:
+
+```bash
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+```
+
+For development inside this checkout, keep using `uv run lon ...`.
+
 ## Usage
 
 ```bash
@@ -55,6 +65,25 @@ Use `--verbose` before the command for diagnostic output:
 ```bash
 uv run lon --verbose status --instance default
 ```
+
+Phase 1b global flags:
+
+```bash
+uv run lon --json status --instance default
+uv run lon --dry-run up --instance preview --port 5688
+uv run lon --yes status
+```
+
+- `--json` emits a single JSON object to stdout for finite commands; human output remains on stderr.
+- `--dry-run` shows the planned action for mutating commands without writing files, changing state, opening
+  browsers, or running Docker.
+- `--yes` is accepted globally for future confirmation prompts.
+
+## Release process
+
+CI runs lint, format check, type check, and tests on pushes and pull requests. Pushing a `v*` tag builds
+the wheel/source distribution and creates a GitHub prerelease with those artifacts attached. PyPI publishing
+is intentionally deferred until the MVP backup/restore loop is solid.
 
 The Phase 0 default n8n image is pinned in code for this CLI release. Because Phase 0 has no `lon update`
 command, moving to a newer n8n image requires a newer `lon` build or an explicit code/config change.

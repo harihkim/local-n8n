@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 1 branch: lifecycle commands, SQLite state registry, and read-only `doctor`.
+Phase 1b branch: global CLI flags layered on the Phase 1 lifecycle/state/doctor foundation.
 
 ## Implemented
 
@@ -26,6 +26,12 @@ Phase 1 branch: lifecycle commands, SQLite state registry, and read-only `doctor
 - Added `lon status`, `lon list`, `lon logs`, `lon start`, `lon stop`, `lon restart`, and `lon open`.
 - Added read-only `lon doctor` diagnostics for platform, Docker CLI, Docker daemon, Docker Compose, and port availability.
 - Added `--verbose` diagnostics for CLI internals such as selected instance, compose path, Docker commands, and readiness checks.
+- Added `--json` for finite commands, emitting a single JSON object to stdout while human output stays on stderr.
+- Added `--dry-run` for mutating lifecycle/browser commands so users can preview planned writes and Docker commands.
+- Added global `--yes` plumbing for future confirmation prompts.
+- Added GitHub Actions CI for lint, format, type checking, and tests.
+- Added a tag-triggered GitHub prerelease workflow that builds wheel/source distribution artifacts.
+- Set package metadata to the first alpha version: `0.1.0a1`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -145,6 +151,37 @@ $LOCAL_N8N_HOME/logs/lon.log
 Open design items before implementation: log rotation, retention, and redaction rules. Secrets such as
 `N8N_ENCRYPTION_KEY`, future passphrases/recovery codes, provider tokens, and `.env` contents must never
 be logged.
+
+### Phase 1b global flags
+
+`plan.md` listed `--json`, `--dry-run`, and `--yes` in Phase 1, but the first Phase 1 branch focused on the
+lifecycle/state/doctor checkpoint.
+
+Implemented in Phase 1b:
+
+- `--json` writes one structured JSON object to stdout for finite commands. Existing Rich/human output remains
+  on stderr so scripts can safely parse stdout.
+- `--dry-run` short-circuits mutating lifecycle/browser commands before filesystem writes, state changes,
+  Docker commands, readiness waits, or browser opening.
+- `--yes` is accepted globally and stored in CLI options. It does not change behavior yet because current
+  Phase 1 commands do not prompt.
+
+Known limitation: `lon --json logs --follow` is rejected for now instead of emitting newline-delimited JSON.
+Plain `lon logs --follow` remains available for text streaming.
+
+### CI and GitHub prereleases
+
+Added `.github/workflows/ci.yml` so pushes and pull requests run:
+
+- `ruff check .`
+- `ruff format --check .`
+- `ty check`
+- `pytest tests`
+
+Added `.github/workflows/release.yml` for tag-triggered prereleases. Pushing a tag like `v0.1.0a1` runs the
+same checks, builds the wheel and source distribution with `uv build --sdist --wheel`, and creates a GitHub
+prerelease with the artifacts attached. PyPI publishing is intentionally deferred until after the core
+backup/restore MVP loop is stable.
 
 ## Verification
 
