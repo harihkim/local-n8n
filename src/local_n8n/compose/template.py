@@ -21,6 +21,7 @@ class InstanceConfig:
     name: str
     port: int
     instance_dir: Path
+    data_volume: str | None = None
     image_ref: str = DEFAULT_IMAGE_REF
 
     @property
@@ -37,7 +38,7 @@ class InstanceConfig:
 
     @property
     def volume_name(self) -> str:
-        return f"n8n_{self.name}_data"
+        return self.data_volume or f"n8n_{self.name}_data"
 
 
 def render_compose(config: InstanceConfig) -> str:
@@ -93,6 +94,22 @@ def ensure_instance_files(config: InstanceConfig) -> None:
             f"Could not write instance files under {config.instance_dir}.",
             hint=str(exc),
         ) from exc
+
+
+def read_env_value(env_path: Path, key: str) -> str | None:
+    if not env_path.exists():
+        return None
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+
+        found_key, value = stripped.split("=", 1)
+        if found_key == key:
+            return value
+
+    return None
 
 
 def generate_n8n_encryption_key() -> str:

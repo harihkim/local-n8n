@@ -4,7 +4,7 @@ import os
 import re
 from pathlib import Path
 
-from local_n8n.compose.template import InstanceConfig
+from local_n8n.compose.template import DEFAULT_IMAGE_REF, InstanceConfig
 from local_n8n.core.errors import UsageError
 
 INSTANCE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
@@ -17,12 +17,19 @@ def config_home() -> Path:
     return Path.home() / ".config" / "local-n8n"
 
 
-def build_instance_config(instance_name: str, port: int = 5678) -> InstanceConfig:
+def build_instance_config(
+    instance_name: str,
+    port: int = 5678,
+    data_volume: str | None = None,
+    image_ref: str = DEFAULT_IMAGE_REF,
+) -> InstanceConfig:
     validate_instance_name(instance_name)
     return InstanceConfig(
         name=instance_name,
         port=port,
         instance_dir=config_home() / "instances" / instance_name,
+        data_volume=data_volume,
+        image_ref=image_ref,
     )
 
 

@@ -25,6 +25,11 @@ class PortInUseError(LonError):
         super().__init__(message=message, exit_code=11, hint=hint)
 
 
+class InstanceNotFoundError(LonError):
+    def __init__(self, message: str, hint: str | None = None) -> None:
+        super().__init__(message=message, exit_code=13, hint=hint)
+
+
 class FileWriteError(LonError):
     pass
 
