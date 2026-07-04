@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 1b branch: global CLI flags layered on the Phase 1 lifecycle/state/doctor foundation.
+Phase 2 branch: guided `lon init` first-run setup.
 
 ## Implemented
 
@@ -34,6 +34,7 @@ Phase 1b branch: global CLI flags layered on the Phase 1 lifecycle/state/doctor 
 - Set package metadata to the first alpha version: `0.1.0a1`.
 - Added MkDocs Material documentation with versioned publishing via `mike`.
 - Added documentation drift checks so command docs stay aligned with the current CLI.
+- Started Phase 2 with a side-effect-free init planning model in `core/init.py`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -201,6 +202,18 @@ Added docs drift tests:
 - global options must be documented
 - important command options must be documented
 - fenced `bash test` examples in docs must execute successfully in `CliRunner`
+
+### Phase 2 slice 1: init planning model
+
+Started Phase 2 without changing CLI behavior yet. Added a core planner that classifies init state as:
+
+- `new`: no registry row or instance files yet
+- `adoptable`: existing Phase 0-style files are present but not registered
+- `initialized`: the instance already exists in `state.db`
+
+The planner chooses the effective port, records whether an existing `.env` will be preserved, detects when
+a requested port is ignored because the registry already owns the instance, and returns the ordered init
+steps that the future `lon init` command will execute.
 
 ## Verification
 
