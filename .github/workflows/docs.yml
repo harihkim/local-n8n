@@ -1,0 +1,84 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Docs version to publish, for example v0.1.0a1"
+        required: true
+        default: "dev"
+      alias:
+        description: "Optional alias, for example latest"
+        required: false
+        default: ""
+      set_default:
+        description: "Set the alias or version as the default docs version"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      - name: Build docs
+        run: uv run --python 3.13 mkdocs build --strict
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish dev docs
+        if: github.event_name == 'push'
+        run: uv run --python 3.13 mike deploy --push --branch gh-pages dev
+
+      - name: Publish versioned docs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DOCS_VERSION: ${{ inputs.version }}
+          DOCS_ALIAS: ${{ inputs.alias }}
+          SET_DEFAULT: ${{ inputs.set_default }}
+        run: |
+          if [ -n "$DOCS_ALIAS" ]; then
+            uv run --python 3.13 mike deploy --push --branch gh-pages --update-aliases "$DOCS_VERSION" "$DOCS_ALIAS"
+            DEFAULT_VERSION="$DOCS_ALIAS"
+          else
+            uv run --python 3.13 mike deploy --push --branch gh-pages "$DOCS_VERSION"
+            DEFAULT_VERSION="$DOCS_VERSION"
+          fi
+
+          if [ "$SET_DEFAULT" = "true" ]; then
+            uv run --python 3.13 mike set-default --push --branch gh-pages "$DEFAULT_VERSION"
+          fi

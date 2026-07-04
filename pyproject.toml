@@ -14,6 +14,8 @@ lon = "local_n8n.app:main"
 
 [dependency-groups]
 dev = [
+    "mike>=2.1",
+    "mkdocs-material>=9.5",
     "pytest>=8",
     "pytest-mock>=3.14",
     "ruff>=0.6",
