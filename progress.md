@@ -15,8 +15,7 @@ Phase 2 branch: guided `lon init` first-run setup.
 - Set `.env` to mode `0600`.
 - Use deterministic Compose project names: `local-n8n-<instance>`.
 - Use explicit Docker volume names: `n8n_<instance>_data`.
-- Pin the Phase 0 n8n image to the verified multi-arch digest:
-  `docker.n8n.io/n8nio/n8n:1.113.3@sha256:57f95a26b1b28527053fba6316d9d046395d9b4da9d0da486e838384a38fcf37`.
+- Use n8n's official stable Docker image by default: `docker.n8n.io/n8nio/n8n`.
 - Added friendly error mapping for missing Docker, daemon-not-running, port-in-use, and generic Compose failures.
 - Added HTTP readiness polling so `lon up` prints success only after the n8n web UI responds.
 - Added a startup progress message so `lon up` does not look hung while n8n is booting.
@@ -37,6 +36,13 @@ Phase 2 branch: guided `lon init` first-run setup.
 - Started Phase 2 with a side-effect-free init planning model in `core/init.py`.
 - Stream Docker Compose output for `lon up`, `lon down`, `lon stop`, `lon start`, and `lon restart`
   so long waits such as first-run image pulls show real progress.
+- Preserve Docker Compose's live TTY progress display in interactive terminals while keeping plain
+  streaming for non-interactive runs.
+- Added `lon init` as the guided first-run command: plan, check Docker prerequisites, start/register the
+  instance through the existing lifecycle path, optionally open the browser, and explain n8n's local
+  `/setup` owner-account step.
+- Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
+  during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -188,6 +194,30 @@ Fixes:
   so `lon --json ...` can still be scripted safely.
 - Added regression tests for the streaming runner and for lifecycle commands choosing the streaming path.
 
+Follow-up manual testing showed that plain pipe streaming made Docker print every progress refresh as a new
+line instead of updating the same terminal rows. Fixed by using a pseudo-terminal for streaming commands
+when stderr is interactive, so Docker Compose can use its normal live progress renderer. Non-interactive
+commands still use plain pipe streaming.
+
+### Stale n8n image pin was the wrong default
+
+The first implementation pinned `docker.n8n.io/n8nio/n8n:1.113.3@sha256:...` for reproducibility, but did
+not add the freshness machinery that must come with pinning. Manual review showed the default image had
+fallen behind current n8n releases, which is especially risky for an automation tool with frequent security
+and bug-fix releases.
+
+Fixes:
+
+- changed the generated Compose default to n8n's official stable image reference:
+  `docker.n8n.io/n8nio/n8n`
+- migrate existing registry rows that still use the old built-in `1.113.3` image pin to the stable image
+  reference on the next `lon up`; custom image references are left unchanged
+- updated tests and docs to match the stable-image default
+- kept future backup/restore design separate: bundles should still record the exact resolved image used for
+  portability, but normal local lifecycle should not ship with a stale hardcoded pin
+- promoted `lon update` and user-selectable image/version settings as a near-term design item instead of
+  treating them as far-off polish
+
 ### CI and GitHub prereleases
 
 Added `.github/workflows/ci.yml` so pushes and pull requests run:
@@ -231,6 +261,55 @@ The planner chooses the effective port, records whether an existing `.env` will 
 a requested port is ignored because the registry already owns the instance, and returns the ordered init
 steps that the future `lon init` command will execute.
 
+### Phase 2 slice 2: `lon init` CLI
+
+Added the executable `lon init` command around the planner. The command:
+
+- checks Docker prerequisites before starting
+- reuses `up_instance` so compose rendering, registry adoption, Docker streaming, readiness waits, and
+  existing friendly error mapping stay centralized
+- optionally opens the browser with `--open` / `--no-open`
+- prints the first-run owner setup hint for n8n's `/setup` redirect
+- supports `--dry-run` and `--json`
+
+Design note: `init` checks Docker prerequisites but does not pre-bind-test the target port. A rerun or
+adoption case can legitimately have the port occupied by the same local-n8n instance, so real conflicts are
+left to Docker Compose and the existing `PortInUseError` mapping.
+
+Persistent CLI file logging is still intentionally separate. Current backend-style handling includes typed
+errors, exit codes, user-facing hints, `--verbose` diagnostics, JSON error envelopes, and tests for expected
+failure modes. File logging should land as its own hardening change with redaction, rotation, and retention
+rules.
+
+### Unplanned development reset command
+
+Manual testing repeatedly needed a clean local slate across containers, volumes, instance files, and state.
+Added a deliberately sharp development command:
+
+```bash
+lon dev wipe
+lon dev wipe --images
+```
+
+Safety decisions:
+
+- command lives under `dev`, not normal lifecycle
+- real deletion prompts with a warning and requires typing `yes`; blank input keeps the default `no`
+- `--yes` or global `--yes` skips the prompt for development automation
+- Docker image deletion is opt-in through `--images`; it includes the current built-in n8n image even if
+  state/instance files were already wiped
+- global `--dry-run` previews without requiring confirmation
+- JSON output is available through the existing global `--json`
+- local deletion is limited to instance files and SQLite state under `$LOCAL_N8N_HOME`
+
+This feature was not explicitly in `plan.md`; it was added as developer-experience support while building
+Phase 2.
+
+Manual testing exposed the important two-step reset case: running `lon dev wipe` first removes local state,
+so a later `lon dev wipe --images` must still know which built-in n8n image to remove. Added core and CLI
+regression tests for that state-gone image cleanup path, plus CLI coverage that `--images` still prompts
+with default `no` unless the user types `yes` or passes `--yes`.
+
 ## Verification
 
 - `uv run --python 3.13 pytest tests`
@@ -253,5 +332,5 @@ steps that the future `lon init` command will execute.
 
 ## Next phase
 
-Continue Phase 1 hardening: global flags (`--json`, `--dry-run`, `--yes`) and persistent diagnostics
-logging can be layered on top of the registry/lifecycle foundation.
+Continue Phase 2: add the Docker Desktop vs Engine-in-WSL conflict check, then decide whether persistent
+diagnostic file logging should land before or after the remaining init polish.

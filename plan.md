@@ -178,7 +178,7 @@ CREATE TABLE remotes (
   config_json TEXT
 );
 CREATE TABLE settings ( key TEXT PRIMARY KEY, value TEXT );
--- e.g. default-instance, cache-passphrase, default-port, default-image-tag, tunnel-provider,
+-- e.g. default-instance, cache-passphrase, default-port, default-image-ref, tunnel-provider,
 --      ngrok-authtoken-ref, backup-retention (keep-N / keep-last-<days>d; default keep-all)
 ```
 **Schema versioning:** the DB carries a version (`PRAGMA user_version`, or a `schema_migrations` table)
@@ -291,7 +291,7 @@ the passphrase + emit recovery slots.
 | `lon up` / `start` · `down` / `stop` · `restart` | container lifecycle (down keeps the volume) |
 | `lon status` | container state, health, URL, version (SQLite + `docker`) |
 | `lon logs [-f]` | stream container logs |
-| `lon update` | **(post-MVP)** **auto-`backup` first** (skippable with `--no-backup`) since image updates may run DB migrations; then pull newer image, recreate, record version |
+| `lon update` | **Near-term image lifecycle command.** Before backup exists, pull the configured/default image and recreate the container. Once backup exists, **auto-`backup` first** (skippable with `--no-backup`) since image updates may run DB migrations; then pull newer image, recreate, record version |
 | `lon open` | open the editor URL in a browser — tries `wslview` → `powershell.exe Start-Process` (WSL) → `xdg-open` (Linux) → `open` (macOS); **prints the URL when no opener is available** |
 | `lon backup [--push <remote>] [--with-exports]` | **full-instance** encrypted bundle (whole `.n8n` volume). **Warns about the brief n8n downtime before quiescing** — backup stops n8n for a consistent snapshot (§12), so it prompts before stopping (proceeds on confirm or `--yes`); matters most once inbound webhooks land (missed events during the window). **First run sets the backup passphrase + shows the recovery code once** and prints the recovery rule verbatim (*keep at least one of {a working instance, an openable bundle}*; §10). Record in SQLite; optional remote push + git-friendly logical exports |
 | `lon restore <bundle \| --from-remote> [--replace]` | ensure prereqs (incl. **pulling the pinned image** — needs registry access, §12) → decrypt → rehydrate **full volume** + key + base URL → `up`. **Refuses to overwrite an existing instance unless `--replace`** (which snapshots current state first, sealed with the **existing** instance's unlock material — §16) |
@@ -346,26 +346,27 @@ are intentionally left uncontracted here; they need no stable machine-facing beh
   is active, set `WEBHOOK_URL`/`N8N_EDITOR_BASE_URL`/`N8N_HOST`/`N8N_PROTOCOL` **plus `N8N_PROXY_HOPS=1`**.
 - Current n8n-recommended envs included by default: `N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true`,
   `N8N_RUNNERS_ENABLED=true`, and timezone via `GENERIC_TIMEZONE` + `TZ` (detected from the host,
-  overridable). The image is **pinned to an exact `tag@digest` chosen and frozen at release time** (both
-  recorded in the manifest) — resolve and freeze the digest when cutting a release; do not depend on a
-  floating "current 2.x". Use the **multi-arch manifest-list digest** (§16), not a host-specific per-arch digest.
-  **Version-coupling caveat:** because the pin is frozen per `lon` release and the MVP has **no `update`
-  command**, an MVP user stays on the n8n version their `lon` build shipped until they upgrade `lon`
-  (the post-MVP `lon update` in Phase 6 adds an in-place path). This is a **documented limitation**, called
-  out in the README (§13 Phase 0) — not a bug.
+  overridable). During the local lifecycle phases, the default image follows n8n's official stable Docker
+  image reference, `docker.n8n.io/n8nio/n8n`, so new installs do not inherit a stale `lon` release-time pin.
+  Backup/restore still records the exact resolved image used for portability: when a bundle is created,
+  record an exact `tag@digest` using the **multi-arch manifest-list digest** (§16), not a host-specific
+  per-arch digest. `lon update` and config-driven `default-image-ref` selection must land before image
+  version metadata becomes part of the backup/restore contract.
 - Default DB = n8n's **SQLite** (fine for single-user local). Optional **`postgres` compose profile** (post-MVP).
   Backup **always captures the full `/home/node/.n8n` volume**; the DB portion additionally branches on
   type (volume file in SQLite mode vs a `pg_dump` in Postgres mode).
 
-**Image-pin release process (repeatable — the digest invariant needs a repeatable step):**
-1. Pick the target n8n tag — a **stable, non-floating** release.
-2. Resolve its **multi-arch manifest-list digest**: `docker buildx imagetools inspect
-   docker.n8n.io/n8nio/n8n:<tag>`; record `<tag>@sha256:<manifest-list-digest>` (§16), **not** a per-arch digest.
-3. **Smoke-test that exact pin** with the §14 fast loop (`init` → owner + workflow + credential → `backup` →
-   wipe → `restore`) on **both amd64 and arm64** before it ships.
-4. Bake the frozen `tag@digest` into the release as the default `default-image-tag`, record it in the
-   `CHANGELOG`. Bumping n8n = a new `lon` release that repeats 1–3 (until post-MVP `lon update` automates the
-   client side).
+**Image version process (repeatable — the digest invariant needs a repeatable step):**
+1. For normal local lifecycle, default to n8n's official stable image reference unless the user configures
+   `default-image-ref`.
+2. For backup/restore metadata, resolve the running image to a **multi-arch manifest-list digest**:
+   `docker buildx imagetools inspect docker.n8n.io/n8nio/n8n:<tag>`; record
+   `<tag>@sha256:<manifest-list-digest>` (§16), **not** a per-arch digest.
+3. **Smoke-test the resolved image** with the §14 fast loop (`init` → owner + workflow + credential →
+   `backup` → wipe → `restore`) on **both amd64 and arm64** before it becomes part of a release or migration
+   path.
+4. Bumping n8n should be possible through `lon update`, with the selected image reference and resolved
+   version recorded in `state.db`.
 
 ---
 
@@ -577,8 +578,7 @@ from the one before it — the compose `lon` renders in Phase 0 is the same one 
   `N8N_SECURE_COOKIE=false`, recommended envs from §8, named volume); shell out to `docker compose up -d` /
   `down`. **Fully type-hinted; `ruff` + `ty` clean.** Ship a short **README** stating the *final*
   one-command promise but **labeling prereq auto-install as post-MVP** (MVP = detect-and-guide) and
-  **noting the pinned-n8n-version limitation** (MVP has no `lon update`; moving to a newer n8n needs a
-  newer `lon` build — §8).
+  documenting the default n8n stable image policy plus the planned `lon update`/config path (§8).
   **Exception handling** for: Docker missing / daemon not running, port already in use, compose
   render/file-write IO errors, and non-zero `docker compose` exit — each mapped to a clear, actionable
   message + non-zero exit code.
@@ -701,7 +701,8 @@ volume restore into a fresh volume (`--numeric-owner`, `config` → 0600), rehyd
 ### Phase 6 — Sync & convenience
 - **Goal:** the cloud-like polish.
 - **Build:** `core/remote.py` (git/s3/folder push/pull); `core/keychain.py` (opt-in cache, WSL fallback);
-  Postgres compose profile + `pg_dump`/`pg_restore` path; `lon update` (auto-backup first).
+  Postgres compose profile + `pg_dump`/`pg_restore` path; harden `lon update` with auto-backup once backups
+  exist.
 - **Checkpoint ✅:** `backup --push` then `restore --from-remote` on a clean box; keychain caching skips the
   prompt on a desktop; `lon update` runs an n8n migration after an automatic backup; a Postgres instance
   backs up and restores.

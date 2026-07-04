@@ -34,14 +34,15 @@ class DoctorReport:
         return 0
 
 
-def run_doctor(port: int = 5678) -> DoctorReport:
+def run_doctor(port: int = 5678, check_port: bool = True) -> DoctorReport:
     checks = [
         _platform_check(),
         _docker_cli_check(),
         _docker_daemon_check(),
         _docker_compose_check(),
-        _port_check(port),
     ]
+    if check_port:
+        checks.append(_port_check(port))
     return DoctorReport(checks=checks)
 
 

@@ -10,9 +10,10 @@ from pathlib import Path
 
 from local_n8n.core.errors import FileWriteError
 
-DEFAULT_IMAGE_REF = (
+DEFAULT_IMAGE_REF = "docker.n8n.io/n8nio/n8n"
+LEGACY_DEFAULT_IMAGE_REFS = (
     "docker.n8n.io/n8nio/n8n:1.113.3"
-    "@sha256:57f95a26b1b28527053fba6316d9d046395d9b4da9d0da486e838384a38fcf37"
+    "@sha256:57f95a26b1b28527053fba6316d9d046395d9b4da9d0da486e838384a38fcf37",
 )
 
 

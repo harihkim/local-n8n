@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from local_n8n.compose.template import DEFAULT_IMAGE_REF, LEGACY_DEFAULT_IMAGE_REFS
 from local_n8n.core.errors import (
     InstanceNotFoundError,
     LonError,
@@ -66,6 +68,48 @@ def test_up_instance_renders_and_runs_docker_compose(
         )
     ]
     assert (tmp_path / "state.db").exists()
+
+
+def test_up_instance_migrates_legacy_default_image_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    legacy_image_ref = LEGACY_DEFAULT_IMAGE_REFS[0]
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            replace(
+                new_instance_record(
+                    name="default",
+                    compose_path=instance_dir / "docker-compose.yml",
+                    data_volume="n8n_default_data",
+                    port=5678,
+                    image_ref=legacy_image_ref,
+                    enc_key_ref=instance_dir / ".env",
+                    created_at="2026-07-01T00:00:00Z",
+                ),
+                n8n_version="1.113.3",
+            )
+        )
+    progress: list[str] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    _patch_compose_runners(monkeypatch, fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
+
+    result = up_instance("default", progress=progress.append)
+
+    assert result.compose_path.read_text(encoding="utf-8").splitlines()[2] == (
+        f"    image: {DEFAULT_IMAGE_REF}"
+    )
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.image_ref == DEFAULT_IMAGE_REF
+    assert record.n8n_version is None
+    assert "Updating legacy n8n image reference" in progress[0]
 
 
 def test_up_instance_streams_compose_output_and_reports_steps(

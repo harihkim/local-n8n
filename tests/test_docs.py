@@ -4,6 +4,7 @@ import re
 import shlex
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from local_n8n.app import app
@@ -15,6 +16,7 @@ COMMANDS_DOC = DOCS / "commands.md"
 runner = CliRunner()
 
 COMMAND_OPTIONS = {
+    "init": {"--instance", "-i", "--port", "-p", "--open", "--no-open"},
     "up": {"--instance", "-i", "--port", "-p"},
     "down": {"--instance", "-i"},
     "stop": {"--instance", "-i"},
@@ -24,6 +26,7 @@ COMMAND_OPTIONS = {
     "logs": {"--instance", "-i", "--follow", "-f", "--tail"},
     "open": {"--instance", "-i"},
     "doctor": {"--port", "-p"},
+    "dev wipe": {"--yes", "-y", "--images"},
 }
 
 GLOBAL_OPTIONS = {"--verbose", "--json", "--dry-run", "--yes", "-y"}
@@ -52,7 +55,8 @@ def test_commands_page_documents_command_options() -> None:
             assert f"`{option}`" in text
 
 
-def test_safe_bash_examples_run() -> None:
+def test_safe_bash_examples_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
     examples = _safe_bash_examples()
     assert examples
 
@@ -65,15 +69,27 @@ def test_safe_bash_examples_run() -> None:
 def _registered_command_names() -> set[str]:
     names = set()
     for command in app.registered_commands:
-        if command.name is not None:
-            name = command.name
-        else:
-            assert command.callback is not None
-            callback_name = getattr(command.callback, "__name__", None)
-            assert callback_name is not None
-            name = callback_name.replace("_command", "")
-        names.add(name.replace("_", "-"))
+        names.add(_command_name(command))
+    for group in app.registered_groups:
+        group_name = group.name
+        assert group_name is not None
+        typer_instance = group.typer_instance
+        assert typer_instance is not None
+        for command in typer_instance.registered_commands:
+            names.add(f"{group_name} {_command_name(command)}")
     return names
+
+
+def _command_name(command: object) -> str:
+    name = getattr(command, "name", None)
+    if name is not None:
+        return str(name).replace("_", "-")
+
+    callback = getattr(command, "callback", None)
+    assert callback is not None
+    callback_name = getattr(callback, "__name__", None)
+    assert callback_name is not None
+    return callback_name.replace("_command", "").replace("_", "-")
 
 
 def _safe_bash_examples() -> list[str]:

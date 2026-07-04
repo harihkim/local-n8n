@@ -10,9 +10,11 @@ from rich.console import Console
 from rich.table import Table
 
 from local_n8n.core.config import build_instance_config
+from local_n8n.core.dev import DevWipePlan, DevWipeResult, plan_dev_wipe, wipe_dev
 from local_n8n.core.diagnostics import debug, set_verbose
 from local_n8n.core.doctor import run_doctor
 from local_n8n.core.errors import LonError, UsageError
+from local_n8n.core.init import InitPlan, InitResult, init_instance, plan_init
 from local_n8n.core.instance import (
     down_instance,
     list_instances,
@@ -38,6 +40,12 @@ app = typer.Typer(
     help="Manage a local, portable n8n instance.",
     no_args_is_help=True,
 )
+dev_app = typer.Typer(
+    add_completion=False,
+    help="Development-only destructive commands.",
+    no_args_is_help=True,
+)
+app.add_typer(dev_app, name="dev")
 console = Console(stderr=True)
 options = CliOptions()
 
@@ -157,6 +165,218 @@ def _emit_dry_run(payload: dict[str, Any]) -> None:
         console.print(f"[dim]would write: {path}[/dim]")
     if payload["would"]["wait_for_web_ui"]:
         console.print("[dim]would wait for n8n web UI readiness[/dim]")
+
+
+def _init_payload(
+    plan: InitPlan,
+    *,
+    dry_run: bool,
+    result: InitResult | None = None,
+) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "command": "init",
+        "dry_run": dry_run,
+        "instance": plan.instance_name,
+        "state": plan.state.value,
+        "requested_port": plan.requested_port,
+        "port": plan.port,
+        "url": plan.url,
+        "compose": _path(plan.compose_path),
+        "env": _path(plan.env_path),
+        "volume": plan.volume_name,
+        "image": plan.image_ref,
+        "requested_port_ignored": plan.requested_port_ignored,
+        "steps": [step.value for step in plan.steps],
+        "started": result.started if result is not None else False,
+        "opened": result.opened if result is not None else False,
+        "opener": result.opener if result is not None else None,
+        "would": {
+            "check_prerequisites": True,
+            "create_compose": plan.will_create_compose,
+            "create_env": plan.will_create_env,
+            "preserve_env": plan.will_preserve_env,
+            "register": plan.will_register,
+            "start": plan.will_start,
+            "open_browser": plan.will_open,
+            "explain_owner_setup": True,
+        },
+    }
+
+
+def _emit_init_dry_run(plan: InitPlan) -> None:
+    payload = _init_payload(plan, dry_run=True)
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: init[/dim]")
+    console.print(f"[dim]instance: {plan.instance_name} ({plan.state.value})[/dim]")
+    console.print(f"[dim]url: {plan.url}[/dim]")
+    console.print("[dim]would check: Docker prerequisites[/dim]")
+    if plan.will_create_compose:
+        console.print(f"[dim]would write: {plan.compose_path}[/dim]")
+    if plan.will_create_env:
+        console.print(f"[dim]would write: {plan.env_path}[/dim]")
+    if plan.will_preserve_env:
+        console.print(f"[dim]would preserve: {plan.env_path}[/dim]")
+    if plan.will_register:
+        console.print(f"[dim]would register: {plan.instance_name}[/dim]")
+    console.print("[dim]would start n8n and wait for web UI readiness[/dim]")
+    if plan.will_open:
+        console.print("[dim]would open the n8n web UI[/dim]")
+    console.print("[dim]would explain the local owner setup step[/dim]")
+
+
+def _emit_owner_setup_guidance(plan: InitPlan, result: InitResult) -> None:
+    console.print(f"[green]local-n8n is ready:[/green] {plan.url}")
+    if plan.will_open:
+        if result.opened:
+            console.print(f"[green]Opened n8n in your browser.[/green] opener: {result.opener}")
+        else:
+            console.print(f"[yellow]Could not open a browser. Use:[/yellow] {plan.url}")
+    else:
+        console.print(f"[yellow]Open n8n:[/yellow] {plan.url}")
+    console.print(
+        "[dim]If n8n redirects to /setup, create the local owner account there. "
+        "That account stays inside this local instance.[/dim]"
+    )
+
+
+def _dev_wipe_payload(
+    plan: DevWipePlan,
+    *,
+    dry_run: bool,
+    result: DevWipeResult | None = None,
+) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "command": "dev wipe",
+        "dry_run": dry_run,
+        "config_home": _path(plan.config_home),
+        "instances": [
+            {
+                "name": target.name,
+                "project": target.project_name,
+                "compose": _path(target.compose_path),
+                "volume": target.volume_name,
+            }
+            for target in plan.targets
+        ],
+        "volumes": list(plan.volume_names),
+        "images": list(plan.image_refs),
+        "local_paths": [_path(path) for path in plan.local_paths],
+        "docker_commands": [list(command) for command in result.docker_commands]
+        if result is not None
+        else [],
+        "deleted_paths": [_path(path) for path in result.deleted_paths]
+        if result is not None
+        else [],
+    }
+
+
+def _emit_dev_wipe_dry_run(plan: DevWipePlan) -> None:
+    payload = _dev_wipe_payload(plan, dry_run=True)
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[bold red]Development wipe preview[/bold red]")
+    console.print(f"[dim]config home: {plan.config_home}[/dim]")
+    if not plan.targets and not plan.volume_names and not plan.image_refs and not plan.local_paths:
+        console.print("[dim]Nothing local-n8n related found.[/dim]")
+        return
+    for target in plan.targets:
+        console.print(f"[dim]would remove project: {target.project_name}[/dim]")
+        console.print(f"[dim]would remove compose: {target.compose_path}[/dim]")
+    for volume_name in plan.volume_names:
+        console.print(f"[dim]would remove volume: {volume_name}[/dim]")
+    for image_ref in plan.image_refs:
+        console.print(f"[dim]would remove image: {image_ref}[/dim]")
+    for path in plan.local_paths:
+        console.print(f"[dim]would delete: {path}[/dim]")
+
+
+def _confirm_dev_wipe(plan: DevWipePlan) -> bool:
+    console.print("[bold red]Development wipe warning[/bold red]")
+    console.print(
+        "[red]This will delete local-n8n containers, networks, volumes, files, and state.[/red]"
+    )
+    if plan.image_refs:
+        console.print("[red]It will also delete known local-n8n Docker images.[/red]")
+    console.print(f"[dim]config home: {plan.config_home}[/dim]")
+    try:
+        answer = console.input("[bold red]Type yes to continue (default: no): [/bold red]")
+    except EOFError:
+        return False
+    return answer.strip().lower() == "yes"
+
+
+@dev_app.command("wipe")
+def dev_wipe(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip typed confirmation."),
+    images: bool = typer.Option(
+        False,
+        "--images",
+        help="Also remove known local-n8n Docker images.",
+    ),
+) -> None:
+    """Remove all local-n8n dev containers, volumes, instance files, and state."""
+    try:
+        plan = plan_dev_wipe(include_images=images)
+    except LonError as error:
+        _handle_error(error)
+
+    if options.dry_run:
+        _emit_dev_wipe_dry_run(plan)
+        return
+
+    if not yes and not options.assume_yes and not _confirm_dev_wipe(plan):
+        _handle_error(LonError("Development wipe cancelled.", hint="Nothing was deleted."))
+
+    console.print("[bold red]Development wipe confirmed.[/bold red]")
+    try:
+        result = wipe_dev(plan, progress=_progress)
+    except LonError as error:
+        _handle_error(error)
+
+    console.print("[green]local-n8n development data wiped.[/green]")
+    console.print(f"[dim]instances: {len(result.plan.targets)}[/dim]")
+    console.print(f"[dim]volumes: {len(result.plan.volume_names)}[/dim]")
+    console.print(f"[dim]images: {len(result.plan.image_refs)}[/dim]")
+    console.print(f"[dim]deleted local paths: {len(result.deleted_paths)}[/dim]")
+    _maybe_emit_json(_dev_wipe_payload(result.plan, dry_run=False, result=result))
+
+
+@app.command()
+def init(
+    instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
+    port: int | None = typer.Option(None, "--port", "-p", help="Host port for n8n."),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open n8n after init."),
+) -> None:
+    """Initialize, start, and optionally open a local n8n instance."""
+    if options.dry_run:
+        try:
+            plan = plan_init(instance_name=instance, port=port, open_browser=open_browser)
+        except LonError as error:
+            _handle_error(error)
+        _emit_init_dry_run(plan)
+        return
+
+    try:
+        result = init_instance(
+            instance_name=instance,
+            port=port,
+            open_browser=open_browser,
+            progress=_progress,
+        )
+    except LonError as error:
+        _handle_error(error)
+
+    _emit_owner_setup_guidance(result.plan, result)
+    _maybe_emit_json(_init_payload(result.plan, dry_run=False, result=result))
 
 
 @app.command()

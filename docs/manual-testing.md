@@ -7,24 +7,26 @@ Use this checklist when validating a release candidate locally.
 ```bash
 uv run lon --help
 uv run lon doctor
+uv run lon --dry-run init --instance preview --port 5688 --no-open
 ```
 
 Expected:
 
 - help lists all current commands
 - `doctor` reports platform, Docker CLI, Docker daemon, Docker Compose, and port state
+- `init` dry-run explains planned writes/start/open behavior without side effects
 
 ## Default Instance
 
 ```bash
-uv run lon up
+uv run lon init --no-open
 uv run lon status
 uv run lon open
 ```
 
 Expected:
 
-- `up` prints a startup progress message
+- `init` prints prerequisite/startup progress
 - success is printed only after the n8n web UI is reachable
 - `status` shows `Container` and `Web UI`
 - first-run n8n may redirect to `/setup`
@@ -38,7 +40,7 @@ uv run lon down
 ## Named Instance
 
 ```bash
-uv run lon up --instance manual-check --port 5683
+uv run lon init --instance manual-check --port 5683 --no-open
 uv run lon status --instance manual-check
 uv run lon list
 ```
@@ -97,3 +99,18 @@ Expected:
 - dry-run does not write instance files, state, or run Docker
 - JSON output is a single object on stdout
 - verbose diagnostics go to stderr
+
+## Development Wipe
+
+Preview only:
+
+```bash test
+uv run lon --dry-run dev wipe
+uv run lon --dry-run dev wipe --images
+```
+
+Expected:
+
+- dry-run does not remove Docker resources or local files
+- real deletion warns and asks you to type `yes`
+- pressing Enter keeps the default `no` choice and deletes nothing

@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from local_n8n.core.errors import UsageError
-from local_n8n.core.init import InitState, InitStep, plan_init
+from local_n8n.core.doctor import DoctorCheck, DoctorReport
+from local_n8n.core.errors import PrerequisiteError, UsageError
+from local_n8n.core.init import InitState, InitStep, init_instance, plan_init
+from local_n8n.core.instance import OpenResult, UpResult
 from local_n8n.core.state import StateStore, new_instance_record
 
 
@@ -120,3 +122,84 @@ def test_plan_init_validates_instance_name(tmp_path: Path, monkeypatch: pytest.M
 
     with pytest.raises(UsageError):
         plan_init("../bad")
+
+
+def test_init_instance_checks_prereqs_starts_and_opens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    progress: list[str] = []
+    up_calls: list[tuple[str, int | None]] = []
+
+    def fake_run_doctor(port: int, check_port: bool = True) -> DoctorReport:
+        assert port == 5688
+        assert not check_port
+        return DoctorReport([DoctorCheck("Docker CLI", True, "available")])
+
+    def fake_up_instance(instance_name: str, port: int | None = None, progress=None) -> UpResult:
+        up_calls.append((instance_name, port))
+        if progress is not None:
+            progress("fake up progress")
+        return UpResult(
+            url=f"http://localhost:{port}",
+            compose_path=tmp_path / "instances" / instance_name / "docker-compose.yml",
+            volume_name=f"n8n_{instance_name}_data",
+        )
+
+    monkeypatch.setattr("local_n8n.core.init.run_doctor", fake_run_doctor)
+    monkeypatch.setattr("local_n8n.core.init.up_instance", fake_up_instance)
+    monkeypatch.setattr(
+        "local_n8n.core.init.open_instance",
+        lambda instance_name: OpenResult(
+            url="http://localhost:5688",
+            opened=True,
+            opener="wslview",
+        ),
+    )
+
+    result = init_instance(
+        instance_name="preview",
+        port=5688,
+        open_browser=True,
+        progress=progress.append,
+    )
+
+    assert result.started
+    assert result.opened
+    assert result.opener == "wslview"
+    assert result.plan.url == "http://localhost:5688"
+    assert up_calls == [("preview", 5688)]
+    assert progress == [
+        "Preparing local-n8n instance 'preview'...",
+        "Checking Docker prerequisites...",
+        "Docker prerequisites look ready.",
+        "fake up progress",
+        "Opening n8n web UI...",
+    ]
+
+
+def test_init_instance_maps_prereq_failure_to_prerequisite_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    monkeypatch.setattr(
+        "local_n8n.core.init.run_doctor",
+        lambda port, check_port=True: DoctorReport(
+            [
+                DoctorCheck(
+                    "Docker CLI",
+                    False,
+                    "not found",
+                    hint="Install Docker Engine inside WSL/Linux.",
+                    exit_code=10,
+                )
+            ]
+        ),
+    )
+
+    with pytest.raises(PrerequisiteError) as exc_info:
+        init_instance()
+
+    assert "Docker CLI is not ready" in exc_info.value.message
+    assert exc_info.value.exit_code == 10

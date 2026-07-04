@@ -5,6 +5,7 @@
 The current release is an alpha. It focuses on the local lifecycle:
 
 - create and start an n8n Docker Compose instance
+- initialize a new instance with a guided first-run command
 - stop, start, restart, and remove the container while keeping data
 - inspect status and logs
 - manage named local instances

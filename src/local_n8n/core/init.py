@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from local_n8n.compose.template import read_env_value
 from local_n8n.core.config import build_instance_config, config_home
+from local_n8n.core.doctor import DoctorCheck, DoctorReport, run_doctor
+from local_n8n.core.errors import LonError, PortInUseError, PrerequisiteError
+from local_n8n.core.instance import open_instance, up_instance
 from local_n8n.core.state import InstanceRecord, StateStore
+
+ProgressReporter = Callable[[str], None]
 
 
 class InitState(StrEnum):
@@ -54,6 +60,45 @@ class InitResult:
     started: bool
     opened: bool
     opener: str | None = None
+
+
+def init_instance(
+    instance_name: str = "default",
+    port: int | None = None,
+    open_browser: bool = True,
+    progress: ProgressReporter | None = None,
+) -> InitResult:
+    plan = plan_init(instance_name=instance_name, port=port, open_browser=open_browser)
+    _report(progress, f"Preparing local-n8n instance {plan.instance_name!r}...")
+    if plan.requested_port_ignored:
+        _report(
+            progress,
+            (
+                f"Instance already uses port {plan.port}; "
+                f"ignoring requested port {plan.requested_port}."
+            ),
+        )
+
+    _report(progress, "Checking Docker prerequisites...")
+    _raise_if_prerequisites_fail(run_doctor(port=plan.port, check_port=False))
+    _report(progress, "Docker prerequisites look ready.")
+
+    up_instance(instance_name=plan.instance_name, port=plan.port, progress=progress)
+
+    opened = False
+    opener = None
+    if plan.will_open:
+        _report(progress, "Opening n8n web UI...")
+        open_result = open_instance(plan.instance_name)
+        opened = open_result.opened
+        opener = open_result.opener
+
+    return InitResult(
+        plan=plan,
+        started=True,
+        opened=opened,
+        opener=opener,
+    )
 
 
 def plan_init(
@@ -187,3 +232,23 @@ def _read_port_from_env(env_path: Path) -> int | None:
         return int(raw_port)
     except ValueError:
         return None
+
+
+def _raise_if_prerequisites_fail(report: DoctorReport) -> None:
+    for check in report.checks:
+        if not check.ok:
+            _raise_prerequisite_error(check)
+
+
+def _raise_prerequisite_error(check: DoctorCheck) -> None:
+    message = f"{check.name} is not ready: {check.detail}."
+    if check.exit_code == 11:
+        raise PortInUseError(message, hint=check.hint)
+    if check.exit_code == 10:
+        raise PrerequisiteError(message, hint=check.hint)
+    raise LonError(message, hint=check.hint)
+
+
+def _report(progress: ProgressReporter | None, message: str) -> None:
+    if progress is not None:
+        progress(message)

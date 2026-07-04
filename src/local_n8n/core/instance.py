@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import platform
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from local_n8n.compose.template import (
     DEFAULT_IMAGE_REF,
+    LEGACY_DEFAULT_IMAGE_REFS,
     InstanceConfig,
     ensure_instance_files,
     read_env_value,
@@ -95,6 +96,13 @@ def up_instance(
     debug(f"up instance={instance_name} requested_port={port}")
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name, port, allow_create=True)
+        migrated_record = _migrate_legacy_default_image(record)
+        if migrated_record.image_ref != record.image_ref:
+            _report(
+                progress,
+                "Updating legacy n8n image reference to the official stable image...",
+            )
+            record = migrated_record
         effective_port = port or record.port
         config = build_instance_config(
             instance_name,
@@ -422,6 +430,12 @@ def _get_or_adopt_instance(
     state.upsert_instance(record)
     debug(f"adopted instance={instance_name} port={port}")
     return record
+
+
+def _migrate_legacy_default_image(record: InstanceRecord) -> InstanceRecord:
+    if record.image_ref not in LEGACY_DEFAULT_IMAGE_REFS:
+        return record
+    return replace(record, image_ref=DEFAULT_IMAGE_REF, n8n_version=None)
 
 
 def _read_port_from_env(env_path: Path) -> int | None:

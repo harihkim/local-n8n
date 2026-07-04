@@ -23,7 +23,7 @@ def test_render_compose_uses_explicit_volume_and_n8n_env_file(tmp_path) -> None:
 
     rendered = render_compose(config)
 
-    assert "image: docker.n8n.io/n8nio/n8n:" in rendered
+    assert "image: docker.n8n.io/n8nio/n8n" in rendered
     assert '      - "${N8N_PORT}:${N8N_PORT}"' in rendered
     assert "env_file:" in rendered
     assert "name: n8n_default_data" in rendered
