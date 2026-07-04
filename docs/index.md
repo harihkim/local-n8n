@@ -17,7 +17,7 @@ The current release is an alpha. It focuses on the local lifecycle:
 Install the current GitHub prerelease with `uv`:
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 ```
 
 For development inside a checkout, use:
@@ -38,6 +38,6 @@ The documentation site is versioned:
 
 - `latest` is the default and follows the newest released docs.
 - `dev` follows unreleased work on `main`.
-- release versions such as `v0.1.0a1` remain browsable.
+- release versions such as `v0.1.0a2` remain browsable.
 
 For normal use, stay on `latest`.

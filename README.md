@@ -21,7 +21,7 @@ On Windows, develop and run the CLI inside WSL Ubuntu. Automatic WSL/Docker prov
 After the first GitHub prerelease is tagged, install with:
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 ```
 
 For development inside this checkout, keep using `uv run lon ...`.

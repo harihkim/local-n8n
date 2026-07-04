@@ -43,6 +43,7 @@ Phase 2 branch: guided `lon init` first-run setup.
   `/setup` owner-account step.
 - Added WSL Docker backend detection to `lon doctor` / `lon init` prerequisites so Docker Desktop WSL
   integration is accepted as a valid backend and explained clearly.
+- Prepared the Phase 2 prerelease bump to `0.1.0a2` so the GitHub release can be tagged from merged `main`.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.

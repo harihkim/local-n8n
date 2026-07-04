@@ -7,7 +7,7 @@ Automatic WSL and Docker provisioning is planned for a later phase. For now, `lo
 ## 1. Install
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 ```
 
 Inside the repository checkout, use:
