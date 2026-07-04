@@ -9,7 +9,7 @@ from local_n8n.compose.template import read_env_value
 from local_n8n.core.config import build_instance_config, config_home
 from local_n8n.core.doctor import DoctorCheck, DoctorReport, run_doctor
 from local_n8n.core.errors import LonError, PortInUseError, PrerequisiteError
-from local_n8n.core.instance import open_instance, up_instance
+from local_n8n.core.instance import ImageUpdateConfirm, open_instance, up_instance
 from local_n8n.core.state import InstanceRecord, StateStore
 
 ProgressReporter = Callable[[str], None]
@@ -67,6 +67,7 @@ def init_instance(
     port: int | None = None,
     open_browser: bool = True,
     progress: ProgressReporter | None = None,
+    image_update_confirm: ImageUpdateConfirm | None = None,
 ) -> InitResult:
     plan = plan_init(instance_name=instance_name, port=port, open_browser=open_browser)
     _report(progress, f"Preparing local-n8n instance {plan.instance_name!r}...")
@@ -83,7 +84,12 @@ def init_instance(
     _raise_if_prerequisites_fail(run_doctor(port=plan.port, check_port=False))
     _report(progress, "Docker prerequisites look ready.")
 
-    up_instance(instance_name=plan.instance_name, port=plan.port, progress=progress)
+    up_instance(
+        instance_name=plan.instance_name,
+        port=plan.port,
+        progress=progress,
+        image_update_confirm=image_update_confirm,
+    )
 
     opened = False
     opener = None

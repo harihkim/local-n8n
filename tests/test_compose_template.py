@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import stat
+from pathlib import Path
 
 from local_n8n.compose.template import (
     InstanceConfig,
@@ -18,7 +19,7 @@ def test_generate_n8n_encryption_key_is_32_random_bytes_base64() -> None:
     assert len(decoded) == 32
 
 
-def test_render_compose_uses_explicit_volume_and_n8n_env_file(tmp_path) -> None:
+def test_render_compose_uses_explicit_volume_and_n8n_env_file(tmp_path: Path) -> None:
     config = InstanceConfig(name="default", port=5678, instance_dir=tmp_path)
 
     rendered = render_compose(config)
@@ -41,7 +42,7 @@ def test_render_env_includes_phase_zero_n8n_settings() -> None:
     assert "TZ=UTC" in rendered
 
 
-def test_ensure_instance_files_preserves_existing_env_key(tmp_path) -> None:
+def test_ensure_instance_files_preserves_existing_env_key(tmp_path: Path) -> None:
     config = InstanceConfig(name="default", port=5678, instance_dir=tmp_path)
     config.env_path.write_text("N8N_ENCRYPTION_KEY=keep-me\n", encoding="utf-8")
 
@@ -51,7 +52,7 @@ def test_ensure_instance_files_preserves_existing_env_key(tmp_path) -> None:
     assert config.env_path.read_text(encoding="utf-8") == "N8N_ENCRYPTION_KEY=keep-me\n"
 
 
-def test_ensure_instance_files_creates_env_mode_0600(tmp_path) -> None:
+def test_ensure_instance_files_creates_env_mode_0600(tmp_path: Path) -> None:
     config = InstanceConfig(name="default", port=5678, instance_dir=tmp_path)
 
     ensure_instance_files(config)

@@ -99,9 +99,9 @@ Use `--yes` only for development automation.
 
 ## Release process
 
-CI runs lint, format check, type check, and tests on pushes and pull requests. Pushing a `v*` tag builds
-the wheel/source distribution and creates a GitHub prerelease with those artifacts attached. PyPI publishing
-is intentionally deferred until the MVP backup/restore loop is solid.
+CI runs lint, format check, `ty`, Pyrefly, tests, and docs build on pushes and pull requests. Pushing a
+`v*` tag builds the wheel/source distribution and creates a GitHub prerelease with those artifacts attached.
+PyPI publishing is intentionally deferred until the MVP backup/restore loop is solid.
 
 The documentation site is built with MkDocs Material and published with versioned URLs. The default docs
 version is `latest`, with `dev` available for unreleased work on `main`.
@@ -112,8 +112,9 @@ The default n8n image follows n8n's official stable Docker image:
 docker.n8n.io/n8nio/n8n
 ```
 
-Instances that still have the earlier built-in `1.113.3` image pin recorded in local state are moved to
-this stable image reference on the next `lon up`. Custom image references are left unchanged.
+Instances that still have the earlier built-in `1.113.3` image pin recorded in local state are prompted to
+move to this stable image reference on the next `lon up` or `lon init`. Press Enter to accept the default
+`yes`, or type `n` to keep the existing image. Custom image references are left unchanged.
 
 An explicit `lon update` command and user-selectable image/version settings are planned before the
 backup/restore workflow depends on image version metadata.

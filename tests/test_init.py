@@ -7,7 +7,7 @@ import pytest
 from local_n8n.core.doctor import DoctorCheck, DoctorReport
 from local_n8n.core.errors import PrerequisiteError, UsageError
 from local_n8n.core.init import InitState, InitStep, init_instance, plan_init
-from local_n8n.core.instance import OpenResult, UpResult
+from local_n8n.core.instance import ImageUpdateConfirm, OpenResult, ProgressReporter, UpResult
 from local_n8n.core.state import StateStore, new_instance_record
 
 
@@ -130,14 +130,26 @@ def test_init_instance_checks_prereqs_starts_and_opens(
     monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
     progress: list[str] = []
     up_calls: list[tuple[str, int | None]] = []
+    image_confirm_calls: list[tuple[str, str]] = []
 
     def fake_run_doctor(port: int, check_port: bool = True) -> DoctorReport:
         assert port == 5688
         assert not check_port
         return DoctorReport([DoctorCheck("Docker CLI", True, "available")])
 
-    def fake_up_instance(instance_name: str, port: int | None = None, progress=None) -> UpResult:
+    def fake_image_update_confirm(old: str, new: str) -> bool:
+        image_confirm_calls.append((old, new))
+        return True
+
+    def fake_up_instance(
+        instance_name: str,
+        port: int | None = None,
+        progress: ProgressReporter | None = None,
+        image_update_confirm: ImageUpdateConfirm | None = None,
+    ) -> UpResult:
         up_calls.append((instance_name, port))
+        assert image_update_confirm is not None
+        assert image_update_confirm("old", "new")
         if progress is not None:
             progress("fake up progress")
         return UpResult(
@@ -162,6 +174,7 @@ def test_init_instance_checks_prereqs_starts_and_opens(
         port=5688,
         open_browser=True,
         progress=progress.append,
+        image_update_confirm=fake_image_update_confirm,
     )
 
     assert result.started
@@ -169,6 +182,7 @@ def test_init_instance_checks_prereqs_starts_and_opens(
     assert result.opener == "wslview"
     assert result.plan.url == "http://localhost:5688"
     assert up_calls == [("preview", 5688)]
+    assert image_confirm_calls == [("old", "new")]
     assert progress == [
         "Preparing local-n8n instance 'preview'...",
         "Checking Docker prerequisites...",

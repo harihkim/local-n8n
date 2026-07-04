@@ -114,3 +114,18 @@ Expected:
 - dry-run does not remove Docker resources or local files
 - real deletion warns and asks you to type `yes`
 - pressing Enter keeps the default `no` choice and deletes nothing
+
+## Legacy Image Update Prompt
+
+If an instance was created with the earlier built-in `1.113.3` image pin, run:
+
+```bash
+uv run lon up
+```
+
+Expected:
+
+- the CLI prints the current image and the new stable image reference
+- the prompt is `Update n8n image now? (Y/n):`
+- pressing Enter accepts the default `yes`
+- typing `n` cancels before Docker Compose runs

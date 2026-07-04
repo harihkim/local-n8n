@@ -75,6 +75,10 @@ Safe preview:
 uv run lon --dry-run up --instance preview --port 5688
 ```
 
+If local state still has the old built-in `1.113.3` image pin, `lon up` prompts before moving that instance
+to n8n's stable image reference. Press Enter to accept the default `yes`, or type `n` to keep the existing
+image. Custom image references are not changed.
+
 JSON preview:
 
 ```bash test

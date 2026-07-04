@@ -3,7 +3,7 @@ from __future__ import annotations
 import json as json_lib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import typer
 from rich.console import Console
@@ -76,7 +76,7 @@ def _maybe_emit_json(payload: dict[str, Any]) -> None:
         _emit_json(payload)
 
 
-def _handle_error(error: LonError) -> None:
+def _handle_error(error: LonError) -> NoReturn:
     console.print(f"[bold red]Error:[/bold red] {error.message}")
     if error.hint:
         console.print(f"[dim]{error.hint}[/dim]")
@@ -128,7 +128,7 @@ def _dry_run_payload(
         if docker_action == "up":
             docker_commands[0].append("-d")
 
-    writes = []
+    writes: list[str] = []
     if writes_instance_files:
         writes = [_path(config.compose_path), _path(config.env_path)]
     if records_state:
@@ -314,6 +314,23 @@ def _confirm_dev_wipe(plan: DevWipePlan) -> bool:
     return answer.strip().lower() == "yes"
 
 
+def _confirm_image_update(old_image_ref: str, new_image_ref: str) -> bool:
+    if options.assume_yes:
+        return True
+    console.print("[yellow]n8n image update available.[/yellow]")
+    console.print(f"[dim]current: {old_image_ref}[/dim]")
+    console.print(f"[dim]new:     {new_image_ref}[/dim]")
+    console.print(
+        "[yellow]Updating n8n can run database migrations. "
+        "Backup support is not implemented yet.[/yellow]"
+    )
+    try:
+        answer = console.input("[bold yellow]Update n8n image now? (Y/n): [/bold yellow]")
+    except EOFError:
+        return False
+    return answer.strip().lower() not in {"n", "no"}
+
+
 @dev_app.command("wipe")
 def dev_wipe(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip typed confirmation."),
@@ -371,6 +388,7 @@ def init(
             port=port,
             open_browser=open_browser,
             progress=_progress,
+            image_update_confirm=_confirm_image_update,
         )
     except LonError as error:
         _handle_error(error)
@@ -402,7 +420,12 @@ def up(
         return
 
     try:
-        result = up_instance(instance_name=instance, port=port, progress=_progress)
+        result = up_instance(
+            instance_name=instance,
+            port=port,
+            progress=_progress,
+            image_update_confirm=_confirm_image_update,
+        )
     except LonError as error:
         _handle_error(error)
 

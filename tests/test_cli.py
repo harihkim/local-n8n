@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from local_n8n.app import app
-from local_n8n.compose.template import DEFAULT_IMAGE_REF
+from local_n8n.compose.template import DEFAULT_IMAGE_REF, LEGACY_DEFAULT_IMAGE_REFS
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, DevWipeTarget
 from local_n8n.core.doctor import DoctorCheck
 from local_n8n.core.init import InitResult, plan_init
@@ -271,10 +271,12 @@ def test_cli_init_success_prints_owner_setup_hint(
         port: int | None,
         open_browser: bool,
         progress: Callable[[str], None],
+        image_update_confirm: Callable[[str, str], bool] | None,
     ) -> InitResult:
         assert instance_name == "preview"
         assert port == 5688
         assert not open_browser
+        assert image_update_confirm is not None
         progress("fake init progress")
         return InitResult(
             plan=plan_init(instance_name=instance_name, port=port, open_browser=open_browser),
@@ -293,12 +295,83 @@ def test_cli_init_success_prints_owner_setup_hint(
     assert "redirects to /setup" in result.stderr
 
 
+def test_cli_up_prompts_for_legacy_image_update_with_yes_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    legacy_image_ref = LEGACY_DEFAULT_IMAGE_REFS[0]
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="default",
+                compose_path=instance_dir / "docker-compose.yml",
+                data_volume="n8n_default_data",
+                port=5678,
+                image_ref=legacy_image_ref,
+                enc_key_ref=instance_dir / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    _patch_compose_runners(monkeypatch, fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
+
+    result = runner.invoke(app, ["up"], input="\n")
+
+    assert result.exit_code == 0
+    assert "n8n image update available" in result.stderr
+    assert "Update n8n image now? (Y/n)" in result.stderr
+    assert "n8n is running" in result.stderr
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.image_ref == DEFAULT_IMAGE_REF
+
+
+def test_cli_up_can_decline_legacy_image_update(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    legacy_image_ref = LEGACY_DEFAULT_IMAGE_REFS[0]
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="default",
+                compose_path=instance_dir / "docker-compose.yml",
+                data_volume="n8n_default_data",
+                port=5678,
+                image_ref=legacy_image_ref,
+                enc_key_ref=instance_dir / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fail_run(args: list[str], cwd: Path) -> CommandResult:
+        raise AssertionError("up should not run Docker after declined image update")
+
+    _patch_compose_runners(monkeypatch, fail_run)
+
+    result = runner.invoke(app, ["up"], input="n\n")
+
+    assert result.exit_code == 1
+    assert "n8n image update cancelled" in result.stderr
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.image_ref == legacy_image_ref
+
+
 def test_cli_dev_wipe_defaults_to_no_without_typed_yes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
 
-    def fail_wipe(*args, **kwargs) -> None:
+    def fail_wipe(*args: object, **kwargs: object) -> None:
         raise AssertionError("wipe_dev should not run without typed yes")
 
     monkeypatch.setattr("local_n8n.app.wipe_dev", fail_wipe)
@@ -316,7 +389,7 @@ def test_cli_dev_wipe_with_images_defaults_to_no_without_typed_yes(
 ) -> None:
     monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
 
-    def fail_wipe(*args, **kwargs) -> None:
+    def fail_wipe(*args: object, **kwargs: object) -> None:
         raise AssertionError("wipe_dev should not run without typed yes")
 
     monkeypatch.setattr("local_n8n.app.wipe_dev", fail_wipe)

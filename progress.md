@@ -210,8 +210,9 @@ Fixes:
 
 - changed the generated Compose default to n8n's official stable image reference:
   `docker.n8n.io/n8nio/n8n`
-- migrate existing registry rows that still use the old built-in `1.113.3` image pin to the stable image
-  reference on the next `lon up`; custom image references are left unchanged
+- ask before migrating existing registry rows that still use the old built-in `1.113.3` image pin to the
+  stable image reference on the next `lon up` or `lon init`; Enter accepts the update, `n` cancels it, and
+  custom image references are left unchanged
 - updated tests and docs to match the stable-image default
 - kept future backup/restore design separate: bundles should still record the exact resolved image used for
   portability, but normal local lifecycle should not ship with a stale hardcoded pin
@@ -225,7 +226,12 @@ Added `.github/workflows/ci.yml` so pushes and pull requests run:
 - `ruff check .`
 - `ruff format --check .`
 - `ty check`
+- `pyrefly check`
 - `pytest tests`
+
+Type checking is intentionally configured, not just invoked: ty checks `src` and `tests` with all configured
+rules treated as errors, while Pyrefly uses the `strict` preset, warning-or-higher failure, Python 3.13, and
+the `src` import path.
 
 Added `.github/workflows/release.yml` for tag-triggered prereleases. Pushing a tag like `v0.1.0a1` runs the
 same checks, builds the wheel and source distribution with `uv build --sdist --wheel`, and creates a GitHub
@@ -316,6 +322,7 @@ with default `no` unless the user types `yes` or passes `--yes`.
 - `uv run --python 3.13 ruff check .`
 - `uv run --python 3.13 ruff format --check .`
 - `uv run --python 3.13 ty check`
+- `uv run --python 3.13 pyrefly check`
 - Real Docker smoke test:
   - `lon up --instance phase0-check --port 5680`
   - verified n8n responded on `http://localhost:5680`

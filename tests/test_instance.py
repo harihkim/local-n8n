@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 
@@ -15,6 +16,7 @@ from local_n8n.core.errors import (
     UsageError,
 )
 from local_n8n.core.instance import (
+    ProgressReporter,
     down_instance,
     list_instances,
     logs_instance,
@@ -28,6 +30,14 @@ from local_n8n.core.runner import CommandResult
 from local_n8n.core.state import StateStore, new_instance_record
 
 ComposeRunner = Callable[[list[str], Path], CommandResult]
+
+
+class LifecycleCommand(Protocol):
+    def __call__(
+        self,
+        instance_name: str,
+        progress: ProgressReporter | None = None,
+    ) -> object: ...
 
 
 def _patch_compose_runners(monkeypatch: pytest.MonkeyPatch, fake_run: ComposeRunner) -> None:
@@ -99,7 +109,11 @@ def test_up_instance_migrates_legacy_default_image_ref(
     _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
-    result = up_instance("default", progress=progress.append)
+    result = up_instance(
+        "default",
+        progress=progress.append,
+        image_update_confirm=lambda old, new: True,
+    )
 
     assert result.compose_path.read_text(encoding="utf-8").splitlines()[2] == (
         f"    image: {DEFAULT_IMAGE_REF}"
@@ -110,6 +124,74 @@ def test_up_instance_migrates_legacy_default_image_ref(
     assert record.image_ref == DEFAULT_IMAGE_REF
     assert record.n8n_version is None
     assert "Updating legacy n8n image reference" in progress[0]
+
+
+def test_up_instance_requires_confirmation_for_legacy_default_image_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    legacy_image_ref = LEGACY_DEFAULT_IMAGE_REFS[0]
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="default",
+                compose_path=instance_dir / "docker-compose.yml",
+                data_volume="n8n_default_data",
+                port=5678,
+                image_ref=legacy_image_ref,
+                enc_key_ref=instance_dir / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fail_run(args: list[str], cwd: Path) -> CommandResult:
+        raise AssertionError("up should not run Docker before image update confirmation")
+
+    _patch_compose_runners(monkeypatch, fail_run)
+
+    with pytest.raises(LonError) as exc_info:
+        up_instance("default")
+
+    assert exc_info.value.message == "n8n image update requires confirmation."
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.image_ref == legacy_image_ref
+
+
+def test_up_instance_can_decline_legacy_default_image_update(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    legacy_image_ref = LEGACY_DEFAULT_IMAGE_REFS[0]
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="default",
+                compose_path=instance_dir / "docker-compose.yml",
+                data_volume="n8n_default_data",
+                port=5678,
+                image_ref=legacy_image_ref,
+                enc_key_ref=instance_dir / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fail_run(args: list[str], cwd: Path) -> CommandResult:
+        raise AssertionError("up should not run Docker after declined image update")
+
+    _patch_compose_runners(monkeypatch, fail_run)
+
+    with pytest.raises(LonError) as exc_info:
+        up_instance("default", image_update_confirm=lambda old, new: False)
+
+    assert exc_info.value.message == "n8n image update cancelled."
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.image_ref == legacy_image_ref
 
 
 def test_up_instance_streams_compose_output_and_reports_steps(
@@ -421,7 +503,7 @@ def test_stop_instance_uses_compose_stop(tmp_path: Path, monkeypatch: pytest.Mon
 def test_non_waiting_lifecycle_commands_stream_compose_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    command,
+    command: LifecycleCommand,
     docker_action: str,
     expected_progress: str,
 ) -> None:
@@ -456,7 +538,7 @@ def test_non_waiting_lifecycle_commands_stream_compose_output(
 def test_waiting_lifecycle_commands_stream_compose_output_after_status_check(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    command,
+    command: LifecycleCommand,
     docker_action: str,
     expected_progress: str,
 ) -> None:

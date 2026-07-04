@@ -29,6 +29,7 @@ from local_n8n.core.state import InstanceRecord, StateStore, new_instance_record
 
 CONTAINER_NOT_PRESENT = "not present"
 ProgressReporter = Callable[[str], None]
+ImageUpdateConfirm = Callable[[str, str], bool]
 
 
 @dataclass(frozen=True)
@@ -92,11 +93,12 @@ def up_instance(
     instance_name: str,
     port: int | None = None,
     progress: ProgressReporter | None = None,
+    image_update_confirm: ImageUpdateConfirm | None = None,
 ) -> UpResult:
     debug(f"up instance={instance_name} requested_port={port}")
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name, port, allow_create=True)
-        migrated_record = _migrate_legacy_default_image(record)
+        migrated_record = _migrate_legacy_default_image(record, image_update_confirm)
         if migrated_record.image_ref != record.image_ref:
             _report(
                 progress,
@@ -432,9 +434,22 @@ def _get_or_adopt_instance(
     return record
 
 
-def _migrate_legacy_default_image(record: InstanceRecord) -> InstanceRecord:
+def _migrate_legacy_default_image(
+    record: InstanceRecord,
+    image_update_confirm: ImageUpdateConfirm | None,
+) -> InstanceRecord:
     if record.image_ref not in LEGACY_DEFAULT_IMAGE_REFS:
         return record
+    if image_update_confirm is None:
+        raise LonError(
+            "n8n image update requires confirmation.",
+            hint="Run the command again from the CLI and confirm the image update prompt.",
+        )
+    if not image_update_confirm(record.image_ref, DEFAULT_IMAGE_REF):
+        raise LonError(
+            "n8n image update cancelled.",
+            hint=f"Keeping existing image reference: {record.image_ref}",
+        )
     return replace(record, image_ref=DEFAULT_IMAGE_REF, n8n_version=None)
 
 

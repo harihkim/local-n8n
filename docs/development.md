@@ -18,9 +18,13 @@ Run the same checks CI runs:
 uv run --python 3.13 ruff check .
 uv run --python 3.13 ruff format --check .
 uv run --python 3.13 ty check
+uv run --python 3.13 pyrefly check
 uv run --python 3.13 pytest tests
 uv run --python 3.13 mkdocs build --strict
 ```
+
+The project config enables Pyrefly's `strict` preset and configures ty to treat all enabled rules as
+errors for `src` and `tests`.
 
 ## Docs Drift Checks
 
