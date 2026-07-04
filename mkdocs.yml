@@ -1,0 +1,53 @@
+site_name: local-n8n
+site_description: A local, portable n8n CLI.
+site_url: https://harihkim.github.io/local-n8n/
+repo_url: https://github.com/harihkim/local-n8n
+repo_name: harihkim/local-n8n
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Command Reference: commands.md
+  - Manual Testing: manual-testing.md
+  - Troubleshooting: troubleshooting.md
+  - Development: development.md
+  - Release Process: release.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+extra:
+  version:
+    provider: mike
+    default: latest

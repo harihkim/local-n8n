@@ -6,6 +6,8 @@ Phase 0 is intentionally small: it renders a Docker Compose project and starts/s
 install Docker, create a registry database, manage Windows bootstrap, configure tunnels, or create encrypted
 backups yet.
 
+Documentation: https://harihkim.github.io/local-n8n/
+
 ## Requirements
 
 - Python 3.13
@@ -84,6 +86,9 @@ uv run lon --yes status
 CI runs lint, format check, type check, and tests on pushes and pull requests. Pushing a `v*` tag builds
 the wheel/source distribution and creates a GitHub prerelease with those artifacts attached. PyPI publishing
 is intentionally deferred until the MVP backup/restore loop is solid.
+
+The documentation site is built with MkDocs Material and published with versioned URLs. The default docs
+version is `latest`, with `dev` available for unreleased work on `main`.
 
 The Phase 0 default n8n image is pinned in code for this CLI release. Because Phase 0 has no `lon update`
 command, moving to a newer n8n image requires a newer `lon` build or an explicit code/config change.

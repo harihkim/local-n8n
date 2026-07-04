@@ -32,6 +32,8 @@ Phase 1b branch: global CLI flags layered on the Phase 1 lifecycle/state/doctor 
 - Added GitHub Actions CI for lint, format, type checking, and tests.
 - Added a tag-triggered GitHub prerelease workflow that builds wheel/source distribution artifacts.
 - Set package metadata to the first alpha version: `0.1.0a1`.
+- Added MkDocs Material documentation with versioned publishing via `mike`.
+- Added documentation drift checks so command docs stay aligned with the current CLI.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -182,6 +184,23 @@ Added `.github/workflows/release.yml` for tag-triggered prereleases. Pushing a t
 same checks, builds the wheel and source distribution with `uv build --sdist --wheel`, and creates a GitHub
 prerelease with the artifacts attached. PyPI publishing is intentionally deferred until after the core
 backup/restore MVP loop is stable.
+
+### Versioned documentation site
+
+Added a documentation site using MkDocs Material. The site is designed to behave like mature framework docs:
+
+- `latest` is the default and points at the newest released docs.
+- `dev` tracks unreleased documentation from `main`.
+- release versions such as `v0.1.0a1` remain available.
+
+Added `mike` for versioned publishing to the `gh-pages` branch and a docs workflow for future deploys.
+
+Added docs drift tests:
+
+- every registered Typer command must appear in `docs/commands.md`
+- global options must be documented
+- important command options must be documented
+- fenced `bash test` examples in docs must execute successfully in `CliRunner`
 
 ## Verification
 

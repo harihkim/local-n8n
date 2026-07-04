@@ -38,3 +38,6 @@ jobs:
 
       - name: Test
         run: uv run --python 3.13 pytest tests
+
+      - name: Build docs
+        run: uv run --python 3.13 mkdocs build --strict
