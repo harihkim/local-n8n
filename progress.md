@@ -41,6 +41,8 @@ Phase 2 branch: guided `lon init` first-run setup.
 - Added `lon init` as the guided first-run command: plan, check Docker prerequisites, start/register the
   instance through the existing lifecycle path, optionally open the browser, and explain n8n's local
   `/setup` owner-account step.
+- Added WSL Docker backend detection to `lon doctor` / `lon init` prerequisites so Docker Desktop WSL
+  integration is accepted as a valid backend and explained clearly.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -339,5 +341,5 @@ with default `no` unless the user types `yes` or passes `--yes`.
 
 ## Next phase
 
-Continue Phase 2: add the Docker Desktop vs Engine-in-WSL conflict check, then decide whether persistent
-diagnostic file logging should land before or after the remaining init polish.
+Phase 2 implementation is ready for manual smoke testing and PR review. Follow-up candidates after the
+Phase 2 merge: persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.

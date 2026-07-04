@@ -206,6 +206,7 @@ Checks:
 - platform
 - Docker CLI
 - Docker daemon
+- Docker backend, including Docker Desktop WSL integration detection
 - Docker Compose
 - port availability
 

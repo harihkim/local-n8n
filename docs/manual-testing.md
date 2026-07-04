@@ -13,7 +13,7 @@ uv run lon --dry-run init --instance preview --port 5688 --no-open
 Expected:
 
 - help lists all current commands
-- `doctor` reports platform, Docker CLI, Docker daemon, Docker Compose, and port state
+- `doctor` reports platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and port state
 - `init` dry-run explains planned writes/start/open behavior without side effects
 
 ## Default Instance

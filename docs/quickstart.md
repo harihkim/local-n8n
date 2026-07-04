@@ -22,7 +22,8 @@ uv run lon --help
 lon doctor
 ```
 
-`doctor` is read-only. It checks platform, Docker CLI, Docker daemon, Docker Compose, and port availability.
+`doctor` is read-only. It checks platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and
+port availability. Inside WSL, it also reports when Docker Desktop WSL integration is the active backend.
 
 ## 3. Initialize and Start n8n
 
