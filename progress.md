@@ -35,6 +35,8 @@ Phase 2 branch: guided `lon init` first-run setup.
 - Added MkDocs Material documentation with versioned publishing via `mike`.
 - Added documentation drift checks so command docs stay aligned with the current CLI.
 - Started Phase 2 with a side-effect-free init planning model in `core/init.py`.
+- Stream Docker Compose output for `lon up`, `lon down`, `lon stop`, `lon start`, and `lon restart`
+  so long waits such as first-run image pulls show real progress.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -171,6 +173,20 @@ Implemented in Phase 1b:
 
 Known limitation: `lon --json logs --follow` is rejected for now instead of emitting newline-delimited JSON.
 Plain `lon logs --follow` remains available for text streaming.
+
+### First-run Docker image pulls looked frozen
+
+`lon up` printed that it was starting n8n, but a first run may spend significant time pulling the n8n image
+before the web UI wait even begins. That made the command look hung on slower networks or machines.
+
+Fixes:
+
+- Added a streaming command runner for Docker Compose lifecycle commands.
+- `lon up`, `lon down`, `lon stop`, `lon start`, and `lon restart` now forward Docker Compose output while
+  those commands run.
+- Human progress and Docker output are written to stderr. Stdout remains reserved for machine-readable JSON,
+  so `lon --json ...` can still be scripted safely.
+- Added regression tests for the streaming runner and for lifecycle commands choosing the streaming path.
 
 ### CI and GitHub prereleases
 

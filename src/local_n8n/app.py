@@ -85,6 +85,10 @@ def _handle_error(error: LonError) -> None:
     raise typer.Exit(error.exit_code)
 
 
+def _progress(message: str) -> None:
+    console.print(f"[cyan]{message}[/cyan]")
+
+
 def _path(value: Path) -> str:
     return str(value)
 
@@ -177,9 +181,8 @@ def up(
         _emit_dry_run(payload)
         return
 
-    console.print("[cyan]Starting n8n and waiting for the web UI...[/cyan]")
     try:
-        result = up_instance(instance_name=instance, port=port)
+        result = up_instance(instance_name=instance, port=port, progress=_progress)
     except LonError as error:
         _handle_error(error)
 
@@ -210,9 +213,8 @@ def down(
         _emit_dry_run(payload)
         return
 
-    console.print("[cyan]Removing n8n container and keeping the data volume...[/cyan]")
     try:
-        result = down_instance(instance_name=instance)
+        result = down_instance(instance_name=instance, progress=_progress)
     except LonError as error:
         _handle_error(error)
 
@@ -240,9 +242,8 @@ def stop(
         _emit_dry_run(payload)
         return
 
-    console.print("[cyan]Stopping n8n container and keeping it available for start...[/cyan]")
     try:
-        result = stop_instance(instance_name=instance)
+        result = stop_instance(instance_name=instance, progress=_progress)
     except LonError as error:
         _handle_error(error)
 
@@ -275,9 +276,8 @@ def start(
         _emit_dry_run(payload)
         return
 
-    console.print("[cyan]Checking n8n container and starting...[/cyan]")
     try:
-        result = start_instance(instance_name=instance)
+        result = start_instance(instance_name=instance, progress=_progress)
     except LonError as error:
         _handle_error(error)
 
@@ -303,9 +303,8 @@ def restart(
         _emit_dry_run(payload)
         return
 
-    console.print("[cyan]Checking n8n container and restarting...[/cyan]")
     try:
-        result = restart_instance(instance_name=instance)
+        result = restart_instance(instance_name=instance, progress=_progress)
     except LonError as error:
         _handle_error(error)
 

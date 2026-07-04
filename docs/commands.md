@@ -15,7 +15,8 @@ uv run lon --help
 | `--dry-run` | Preview mutating/browser commands without side effects. |
 | `--yes`, `-y` | Assume yes for confirmation prompts. Currently reserved for future prompts. |
 
-Human output goes to stderr. JSON output goes to stdout.
+Human output goes to stderr. JSON output goes to stdout. Lifecycle commands that may wait on Docker
+also stream Docker Compose output to stderr.
 
 ## Lifecycle
 

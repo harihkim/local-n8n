@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,12 @@ from local_n8n.core.runner import CommandResult
 from local_n8n.core.state import StateStore, new_instance_record
 
 runner = CliRunner()
+ComposeRunner = Callable[[list[str], Path], CommandResult]
+
+
+def _patch_compose_runners(monkeypatch: pytest.MonkeyPatch, fake_run: ComposeRunner) -> None:
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.run_streaming", fake_run)
 
 
 def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -20,13 +27,15 @@ def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 
     assert result.exit_code == 0
-    assert "Starting n8n and waiting for the web UI" in result.stderr
+    assert "Ensuring local-n8n instance files" in result.stderr
+    assert "Starting Docker container" in result.stderr
+    assert "Waiting for n8n web UI" in result.stderr
     assert "n8n is running" in result.stderr
 
 
@@ -38,7 +47,7 @@ def test_cli_up_friendly_error_without_traceback(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         raise FileNotFoundError("docker")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
@@ -57,12 +66,12 @@ def test_cli_down_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = runner.invoke(app, ["down"])
 
     assert result.exit_code == 0
-    assert "Removing n8n container and keeping the data volume" in result.stderr
+    assert "Running Docker Compose down" in result.stderr
     assert "n8n container removed" in result.stderr
 
 
@@ -75,12 +84,12 @@ def test_cli_stop_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = runner.invoke(app, ["stop"])
 
     assert result.exit_code == 0
-    assert "Stopping n8n container" in result.stderr
+    assert "Running Docker Compose stop" in result.stderr
     assert "Container kept" in result.stderr
 
 
@@ -97,7 +106,7 @@ def test_cli_start_fails_fast_when_container_is_not_present(
             return CommandResult(args=args, returncode=0, stdout="", stderr="")
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["start"])
@@ -120,7 +129,7 @@ def test_cli_restart_fails_fast_when_container_is_not_present(
             return CommandResult(args=args, returncode=0, stdout="", stderr="")
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["restart"])
@@ -139,7 +148,7 @@ def test_cli_status_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["status"])
@@ -159,7 +168,7 @@ def test_cli_verbose_prints_diagnostics(tmp_path: Path, monkeypatch: pytest.Monk
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["--verbose", "status"])
@@ -179,7 +188,7 @@ def test_cli_json_status_writes_single_stdout_object(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["--json", "status"])
@@ -256,7 +265,7 @@ def test_cli_yes_global_flag_is_accepted(tmp_path: Path, monkeypatch: pytest.Mon
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["--yes", "status"])
@@ -282,7 +291,7 @@ def test_cli_list_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = runner.invoke(app, ["list"])
 

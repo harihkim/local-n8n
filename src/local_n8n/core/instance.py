@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,10 +23,11 @@ from local_n8n.core.errors import (
     StartupTimeoutError,
 )
 from local_n8n.core.readiness import is_web_ui_ready, wait_for_web_ui_ready
-from local_n8n.core.runner import CommandResult, run
+from local_n8n.core.runner import CommandResult, run, run_streaming
 from local_n8n.core.state import InstanceRecord, StateStore, new_instance_record, utc_now
 
 CONTAINER_NOT_PRESENT = "not present"
+ProgressReporter = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -85,7 +87,11 @@ class OpenResult:
     opener: str | None = None
 
 
-def up_instance(instance_name: str, port: int | None = None) -> UpResult:
+def up_instance(
+    instance_name: str,
+    port: int | None = None,
+    progress: ProgressReporter | None = None,
+) -> UpResult:
     debug(f"up instance={instance_name} requested_port={port}")
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name, port, allow_create=True)
@@ -98,6 +104,7 @@ def up_instance(instance_name: str, port: int | None = None) -> UpResult:
         )
         debug(f"compose_path={config.compose_path}")
         debug(f"data_volume={config.volume_name}")
+        _report(progress, "Ensuring local-n8n instance files...")
         ensure_instance_files(config)
         state.upsert_instance(
             InstanceRecord(
@@ -116,6 +123,10 @@ def up_instance(instance_name: str, port: int | None = None) -> UpResult:
         )
         url = f"http://localhost:{effective_port}"
 
+        _report(
+            progress,
+            "Starting Docker container. First run may download the n8n image...",
+        )
         _run_compose(
             config.instance_dir,
             [
@@ -128,8 +139,10 @@ def up_instance(instance_name: str, port: int | None = None) -> UpResult:
                 "up",
                 "-d",
             ],
+            stream=True,
         )
 
+        _report(progress, "Waiting for n8n web UI...")
         if not wait_for_web_ui_ready(url):
             raise StartupTimeoutError(
                 "n8n started, but the web UI did not become reachable in time.",
@@ -145,7 +158,10 @@ def up_instance(instance_name: str, port: int | None = None) -> UpResult:
         )
 
 
-def down_instance(instance_name: str) -> DownResult:
+def down_instance(
+    instance_name: str,
+    progress: ProgressReporter | None = None,
+) -> DownResult:
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name)
     config = build_instance_config(
@@ -154,6 +170,7 @@ def down_instance(instance_name: str) -> DownResult:
         data_volume=record.data_volume,
         image_ref=record.image_ref,
     )
+    _report(progress, "Running Docker Compose down...")
     _run_compose(
         config.instance_dir,
         [
@@ -165,11 +182,15 @@ def down_instance(instance_name: str) -> DownResult:
             str(config.compose_path),
             "down",
         ],
+        stream=True,
     )
     return DownResult(volume_name=config.volume_name)
 
 
-def stop_instance(instance_name: str) -> StopResult:
+def stop_instance(
+    instance_name: str,
+    progress: ProgressReporter | None = None,
+) -> StopResult:
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name)
     config = build_instance_config(
@@ -178,6 +199,7 @@ def stop_instance(instance_name: str) -> StopResult:
         data_volume=record.data_volume,
         image_ref=record.image_ref,
     )
+    _report(progress, "Running Docker Compose stop...")
     _run_compose(
         config.instance_dir,
         [
@@ -189,11 +211,15 @@ def stop_instance(instance_name: str) -> StopResult:
             str(config.compose_path),
             "stop",
         ],
+        stream=True,
     )
     return StopResult(volume_name=config.volume_name)
 
 
-def start_instance(instance_name: str) -> StartResult:
+def start_instance(
+    instance_name: str,
+    progress: ProgressReporter | None = None,
+) -> StartResult:
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name)
     config = build_instance_config(
@@ -210,6 +236,7 @@ def start_instance(instance_name: str) -> StartResult:
             hint=f"Run `lon up --instance {instance_name}` to create and start it.",
         )
 
+    _report(progress, "Running Docker Compose start...")
     _run_compose(
         config.instance_dir,
         [
@@ -221,7 +248,9 @@ def start_instance(instance_name: str) -> StartResult:
             str(config.compose_path),
             "start",
         ],
+        stream=True,
     )
+    _report(progress, "Waiting for n8n web UI...")
     if not wait_for_web_ui_ready(url):
         raise StartupTimeoutError(
             "n8n started, but the web UI did not become reachable in time.",
@@ -230,7 +259,10 @@ def start_instance(instance_name: str) -> StartResult:
     return StartResult(url=url)
 
 
-def restart_instance(instance_name: str) -> RestartResult:
+def restart_instance(
+    instance_name: str,
+    progress: ProgressReporter | None = None,
+) -> RestartResult:
     with StateStore.open_default() as state:
         record = _get_or_adopt_instance(state, instance_name)
     config = build_instance_config(
@@ -247,6 +279,7 @@ def restart_instance(instance_name: str) -> RestartResult:
             hint=f"Run `lon up --instance {instance_name}` to create and start it.",
         )
 
+    _report(progress, "Running Docker Compose restart...")
     _run_compose(
         config.instance_dir,
         [
@@ -258,7 +291,9 @@ def restart_instance(instance_name: str) -> RestartResult:
             str(config.compose_path),
             "restart",
         ],
+        stream=True,
     )
+    _report(progress, "Waiting for n8n web UI...")
     if not wait_for_web_ui_ready(url):
         raise StartupTimeoutError(
             "n8n restarted, but the web UI did not become reachable in time.",
@@ -468,9 +503,15 @@ def _is_wsl() -> bool:
         return False
 
 
-def _run_compose(cwd: Path, command: list[str]) -> CommandResult:
+def _report(progress: ProgressReporter | None, message: str) -> None:
+    if progress is not None:
+        progress(message)
+
+
+def _run_compose(cwd: Path, command: list[str], stream: bool = False) -> CommandResult:
     try:
-        result = run(command, cwd=cwd)
+        runner = run_streaming if stream else run
+        result = runner(command, cwd=cwd)
     except FileNotFoundError as exc:
         raise PrerequisiteError(
             "Docker was not found.",

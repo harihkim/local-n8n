@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from local_n8n.core.errors import (
     UsageError,
 )
 from local_n8n.core.instance import (
+    down_instance,
     list_instances,
     logs_instance,
     restart_instance,
@@ -22,6 +24,13 @@ from local_n8n.core.instance import (
 )
 from local_n8n.core.runner import CommandResult
 from local_n8n.core.state import StateStore, new_instance_record
+
+ComposeRunner = Callable[[list[str], Path], CommandResult]
+
+
+def _patch_compose_runners(monkeypatch: pytest.MonkeyPatch, fake_run: ComposeRunner) -> None:
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.run_streaming", fake_run)
 
 
 def test_up_instance_renders_and_runs_docker_compose(
@@ -34,7 +43,7 @@ def test_up_instance_renders_and_runs_docker_compose(
         calls.append((args, cwd))
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = up_instance("default", port=5678)
@@ -59,6 +68,34 @@ def test_up_instance_renders_and_runs_docker_compose(
     assert (tmp_path / "state.db").exists()
 
 
+def test_up_instance_streams_compose_output_and_reports_steps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    stream_calls: list[list[str]] = []
+    progress: list[str] = []
+
+    def fail_run(args: list[str], cwd: Path) -> CommandResult:
+        raise AssertionError("up should stream Docker Compose output")
+
+    def fake_streaming(args: list[str], cwd: Path) -> CommandResult:
+        stream_calls.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="docker progress")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fail_run)
+    monkeypatch.setattr("local_n8n.core.instance.run_streaming", fake_streaming)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
+
+    up_instance("default", progress=progress.append)
+
+    assert stream_calls[0][-2:] == ["up", "-d"]
+    assert progress == [
+        "Ensuring local-n8n instance files...",
+        "Starting Docker container. First run may download the n8n image...",
+        "Waiting for n8n web UI...",
+    ]
+
+
 def test_up_instance_maps_missing_docker_to_prerequisite_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -67,7 +104,7 @@ def test_up_instance_maps_missing_docker_to_prerequisite_error(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         raise FileNotFoundError("docker")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     with pytest.raises(PrerequisiteError) as exc_info:
@@ -87,7 +124,7 @@ def test_up_instance_maps_port_conflict(tmp_path: Path, monkeypatch: pytest.Monk
             stderr="Bind for 0.0.0.0:5678 failed: port is already allocated",
         )
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     with pytest.raises(PortInUseError) as exc_info:
@@ -116,7 +153,7 @@ def test_up_instance_waits_for_web_ui_before_returning(
         ready_urls.append(url)
         return True
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", fake_wait)
 
     up_instance("default", port=5680)
@@ -137,7 +174,7 @@ def test_up_instance_adopts_existing_phase_zero_env_port(
         calls.append(args)
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = up_instance("default")
@@ -162,7 +199,7 @@ def test_status_instance_parses_compose_json(
             stderr="",
         )
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = status_instance("default")
@@ -181,7 +218,7 @@ def test_status_instance_includes_stopped_containers(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"exited"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = status_instance("default")
 
@@ -197,7 +234,7 @@ def test_status_instance_reports_missing_container_as_not_present(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = status_instance("default")
 
@@ -234,7 +271,7 @@ def test_list_instances_returns_registered_instances_with_status(
         state = "running" if "alpha" in str(cwd) else "exited"
         return CommandResult(args=args, returncode=0, stdout=f'[{{"State":"{state}"}}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     results = list_instances()
 
@@ -252,7 +289,7 @@ def test_logs_instance_returns_compose_logs(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="n8n ready\n", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = logs_instance("default", tail=50)
 
@@ -276,7 +313,7 @@ def test_restart_instance_fails_fast_when_container_is_not_created(
         readiness_called = True
         return True
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", fake_wait)
 
     with pytest.raises(LonError) as exc_info:
@@ -303,7 +340,7 @@ def test_start_instance_fails_fast_when_container_is_not_present(
         readiness_called = True
         return True
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", fake_wait)
 
     with pytest.raises(LonError) as exc_info:
@@ -322,12 +359,86 @@ def test_stop_instance_uses_compose_stop(tmp_path: Path, monkeypatch: pytest.Mon
         calls.append(args)
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = stop_instance("default")
 
     assert result.volume_name == "n8n_default_data"
     assert calls[-1][-1] == "stop"
+
+
+@pytest.mark.parametrize(
+    ("command", "docker_action", "expected_progress"),
+    [
+        (down_instance, "down", "Running Docker Compose down..."),
+        (stop_instance, "stop", "Running Docker Compose stop..."),
+    ],
+)
+def test_non_waiting_lifecycle_commands_stream_compose_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command,
+    docker_action: str,
+    expected_progress: str,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+    stream_calls: list[list[str]] = []
+    progress: list[str] = []
+
+    def fail_run(args: list[str], cwd: Path) -> CommandResult:
+        raise AssertionError(f"{docker_action} should stream Docker Compose output")
+
+    def fake_streaming(args: list[str], cwd: Path) -> CommandResult:
+        stream_calls.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="docker progress")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fail_run)
+    monkeypatch.setattr("local_n8n.core.instance.run_streaming", fake_streaming)
+
+    command("default", progress=progress.append)
+
+    assert stream_calls[0][-1] == docker_action
+    assert progress == [expected_progress]
+
+
+@pytest.mark.parametrize(
+    ("command", "docker_action", "expected_progress"),
+    [
+        (start_instance, "start", "Running Docker Compose start..."),
+        (restart_instance, "restart", "Running Docker Compose restart..."),
+    ],
+)
+def test_waiting_lifecycle_commands_stream_compose_output_after_status_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command,
+    docker_action: str,
+    expected_progress: str,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _write_phase_zero_compose(tmp_path)
+    captured_calls: list[list[str]] = []
+    stream_calls: list[list[str]] = []
+    progress: list[str] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        captured_calls.append(args)
+        return CommandResult(args=args, returncode=0, stdout='[{"State":"exited"}]', stderr="")
+
+    def fake_streaming(args: list[str], cwd: Path) -> CommandResult:
+        stream_calls.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="docker progress")
+
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.run_streaming", fake_streaming)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
+
+    command("default", progress=progress.append)
+
+    assert captured_calls[0][-3:] == ["--all", "--format", "json"]
+    assert stream_calls[0][-1] == docker_action
+    assert progress == [expected_progress, "Waiting for n8n web UI..."]
 
 
 def test_status_instance_requires_existing_instance(
