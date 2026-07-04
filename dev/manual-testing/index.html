@@ -461,6 +461,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#development-wipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development Wipe
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -631,6 +642,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#development-wipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development Wipe
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -656,20 +678,22 @@
 <h2 id="baseline">Baseline<a class="headerlink" href="#baseline" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>--help
 uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>doctor
+uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>--dry-run<span class="w"> </span>init<span class="w"> </span>--instance<span class="w"> </span>preview<span class="w"> </span>--port<span class="w"> </span><span class="m">5688</span><span class="w"> </span>--no-open
 </code></pre></div>
 <p>Expected:</p>
 <ul>
 <li>help lists all current commands</li>
-<li><code>doctor</code> reports platform, Docker CLI, Docker daemon, Docker Compose, and port state</li>
+<li><code>doctor</code> reports platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and port state</li>
+<li><code>init</code> dry-run explains planned writes/start/open behavior without side effects</li>
 </ul>
 <h2 id="default-instance">Default Instance<a class="headerlink" href="#default-instance" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>up
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>init<span class="w"> </span>--no-open
 uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>status
 uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>open
 </code></pre></div>
 <p>Expected:</p>
 <ul>
-<li><code>up</code> prints a startup progress message</li>
+<li><code>init</code> prints prerequisite/startup progress</li>
 <li>success is printed only after the n8n web UI is reachable</li>
 <li><code>status</code> shows <code>Container</code> and <code>Web UI</code></li>
 <li>first-run n8n may redirect to <code>/setup</code></li>
@@ -678,7 +702,7 @@ uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>down
 </code></pre></div>
 <h2 id="named-instance">Named Instance<a class="headerlink" href="#named-instance" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>up<span class="w"> </span>--instance<span class="w"> </span>manual-check<span class="w"> </span>--port<span class="w"> </span><span class="m">5683</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>init<span class="w"> </span>--instance<span class="w"> </span>manual-check<span class="w"> </span>--port<span class="w"> </span><span class="m">5683</span><span class="w"> </span>--no-open
 uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>status<span class="w"> </span>--instance<span class="w"> </span>manual-check
 uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>list
 </code></pre></div>
@@ -722,6 +746,31 @@ uv run lon --json --dry-run up --instance preview --port 5688
 <li>dry-run does not write instance files, state, or run Docker</li>
 <li>JSON output is a single object on stdout</li>
 <li>verbose diagnostics go to stderr</li>
+</ul>
+<h2 id="development-wipe">Development Wipe<a class="headerlink" href="#development-wipe" title="Permanent link">&para;</a></h2>
+<p>Preview only:</p>
+<p>```bash test
+uv run lon --dry-run dev wipe
+uv run lon --dry-run dev wipe --images
+<div class="highlight"><pre><span></span><code>Expected:
+
+- dry-run does not remove Docker resources or local files
+- real deletion warns and asks you to type `yes`
+- pressing Enter keeps the default `no` choice and deletes nothing
+
+## Legacy Image Update Prompt
+
+If an instance was created with the earlier built-in `1.113.3` image pin, run:
+
+```bash
+uv run lon up
+</code></pre></div></p>
+<p>Expected:</p>
+<ul>
+<li>the CLI prints the current image and the new stable image reference</li>
+<li>the prompt is <code>Update n8n image now? (Y/n):</code></li>
+<li>pressing Enter accepts the default <code>yes</code></li>
+<li>typing <code>n</code> cancels before Docker Compose runs</li>
 </ul>
 
 

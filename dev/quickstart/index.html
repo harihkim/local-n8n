@@ -364,10 +364,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-start-n8n" class="md-nav__link">
+  <a href="#3-initialize-and-start-n8n" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Start n8n
+        3. Initialize and Start n8n
       
     </span>
   </a>
@@ -588,10 +588,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-start-n8n" class="md-nav__link">
+  <a href="#3-initialize-and-start-n8n" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Start n8n
+        3. Initialize and Start n8n
       
     </span>
   </a>
@@ -655,7 +655,7 @@
 <p>This guide assumes Linux or WSL with Python 3.13, <code>uv</code>, and Docker Engine available.</p>
 <p>Automatic WSL and Docker provisioning is planned for a later phase. For now, <code>lon doctor</code> detects and explains prerequisite problems.</p>
 <h2 id="1-install">1. Install<a class="headerlink" href="#1-install" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 </code></pre></div>
 <p>Inside the repository checkout, use:</p>
 <p>```bash test
@@ -665,9 +665,10 @@ uv run lon --help
 ```bash
 lon doctor
 </code></pre></div></p>
-<p><code>doctor</code> is read-only. It checks platform, Docker CLI, Docker daemon, Docker Compose, and port availability.</p>
-<h2 id="3-start-n8n">3. Start n8n<a class="headerlink" href="#3-start-n8n" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>up
+<p><code>doctor</code> is read-only. It checks platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and
+port availability. Inside WSL, it also reports when Docker Desktop WSL integration is the active backend.</p>
+<h2 id="3-initialize-and-start-n8n">3. Initialize and Start n8n<a class="headerlink" href="#3-initialize-and-start-n8n" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>init
 </code></pre></div>
 <p>This creates the default instance under:</p>
 <div class="highlight"><pre><span></span><code>~/.config/local-n8n/instances/default/
@@ -678,6 +679,8 @@ lon doctor
 <li><code>.env</code> with <code>N8N_ENCRYPTION_KEY</code></li>
 </ul>
 <p>The <code>.env</code> file is created once and preserved on later runs.</p>
+<p><code>init</code> starts n8n, opens the browser when possible, and explains the local owner setup step.
+The generated Compose file uses n8n's official stable Docker image, <code>docker.n8n.io/n8nio/n8n</code>.</p>
 <h2 id="4-open-n8n">4. Open n8n<a class="headerlink" href="#4-open-n8n" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>lon<span class="w"> </span>open
 </code></pre></div>
@@ -696,7 +699,7 @@ lon<span class="w"> </span>up
 </code></pre></div>
 <h2 id="named-instances">Named Instances<a class="headerlink" href="#named-instances" title="Permanent link">&para;</a></h2>
 <p>Use <code>--instance</code> to create separate local instances:</p>
-<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>up<span class="w"> </span>--instance<span class="w"> </span>manual-check<span class="w"> </span>--port<span class="w"> </span><span class="m">5683</span>
+<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>init<span class="w"> </span>--instance<span class="w"> </span>manual-check<span class="w"> </span>--port<span class="w"> </span><span class="m">5683</span>
 lon<span class="w"> </span>status<span class="w"> </span>--instance<span class="w"> </span>manual-check
 lon<span class="w"> </span>down<span class="w"> </span>--instance<span class="w"> </span>manual-check
 </code></pre></div>

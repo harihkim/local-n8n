@@ -610,6 +610,7 @@
 <p>The current release is an alpha. It focuses on the local lifecycle:</p>
 <ul>
 <li>create and start an n8n Docker Compose instance</li>
+<li>initialize a new instance with a guided first-run command</li>
 <li>stop, start, restart, and remove the container while keeping data</li>
 <li>inspect status and logs</li>
 <li>manage named local instances</li>
@@ -618,7 +619,7 @@
 </ul>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
 <p>Install the current GitHub prerelease with <code>uv</code>:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 </code></pre></div>
 <p>For development inside a checkout, use:</p>
 <p><code>bash test
@@ -631,7 +632,7 @@ uv run lon --help</code></p>
 <ul>
 <li><code>latest</code> is the default and follows the newest released docs.</li>
 <li><code>dev</code> follows unreleased work on <code>main</code>.</li>
-<li>release versions such as <code>v0.1.0a1</code> remain browsable.</li>
+<li>release versions such as <code>v0.1.0a2</code> remain browsable.</li>
 </ul>
 <p>For normal use, stay on <code>latest</code>.</p>
 

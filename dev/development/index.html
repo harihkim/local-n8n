@@ -663,9 +663,12 @@ uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span>ruff<span class="w"> </span>check<span class="w"> </span>.
 uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span>ruff<span class="w"> </span>format<span class="w"> </span>--check<span class="w"> </span>.
 uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span>ty<span class="w"> </span>check
+uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span>pyrefly<span class="w"> </span>check
 uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span>pytest<span class="w"> </span>tests
 uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span>mkdocs<span class="w"> </span>build<span class="w"> </span>--strict
 </code></pre></div>
+<p>The project config enables Pyrefly's <code>strict</code> preset and configures ty to treat all enabled rules as
+errors for <code>src</code> and <code>tests</code>.</p>
 <h2 id="docs-drift-checks">Docs Drift Checks<a class="headerlink" href="#docs-drift-checks" title="Permanent link">&para;</a></h2>
 <p>The test suite includes documentation checks that verify:</p>
 <ul>

@@ -380,6 +380,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#lon-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#lon-down" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -644,6 +655,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#lon-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#lon-down" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -796,31 +818,59 @@ uv run lon --help
 | `--verbose` | Print diagnostic details to stderr. |
 | `--json` | Emit one JSON object to stdout for finite commands. |
 | `--dry-run` | Preview mutating/browser commands without side effects. |
-| `--yes`, `-y` | Assume yes for confirmation prompts. Currently reserved for future prompts. |
+| `--yes`, `-y` | Assume yes for confirmation prompts where supported. |
 
-Human output goes to stderr. JSON output goes to stdout.
+Human output goes to stderr. JSON output goes to stdout. Lifecycle commands that may wait on Docker
+also stream Docker Compose output to stderr. In an interactive terminal, Docker&#39;s live progress display is
+preserved; in non-interactive output it falls back to plain streaming.
 
 ## Lifecycle
 
-### `lon up`
+### `lon init`
 
-Render instance files if needed, create or recreate the Compose container, start n8n, and wait until the n8n web UI is reachable.
+Plan, initialize, start, and optionally open a local n8n instance. This is the guided first-run entry
+point for new users.
 
 Options:
 
 - `--instance`, `-i`: instance name. Default: `default`.
 - `--port`, `-p`: host port for n8n.
+- `--open` / `--no-open`: open the n8n web UI after startup. Default: `--open`.
 
 Examples:
 
 ```bash
-lon up
-lon up --instance manual-check --port 5683
+lon init
+lon init --instance manual-check --port 5683 --no-open
 </code></pre></div></p>
 <p>Safe preview:</p>
 <p>```bash test
-uv run lon --dry-run up --instance preview --port 5688
+uv run lon --dry-run init --instance preview --port 5688 --no-open
 <div class="highlight"><pre><span></span><code>JSON preview:
+
+```bash test
+uv run lon --json --dry-run init --instance preview --port 5688 --no-open
+</code></pre></div></p>
+<p>On first run, n8n may redirect to <code>/setup</code>; create the local owner account there.</p>
+<h3 id="lon-up"><code>lon up</code><a class="headerlink" href="#lon-up" title="Permanent link">&para;</a></h3>
+<p>Render instance files if needed, create or recreate the Compose container, start n8n, and wait until the n8n web UI is reachable.</p>
+<p>Options:</p>
+<ul>
+<li><code>--instance</code>, <code>-i</code>: instance name. Default: <code>default</code>.</li>
+<li><code>--port</code>, <code>-p</code>: host port for n8n.</li>
+</ul>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>up
+lon<span class="w"> </span>up<span class="w"> </span>--instance<span class="w"> </span>manual-check<span class="w"> </span>--port<span class="w"> </span><span class="m">5683</span>
+</code></pre></div>
+<p>Safe preview:</p>
+<p>```bash test
+uv run lon --dry-run up --instance preview --port 5688
+<div class="highlight"><pre><span></span><code>If local state still has the old built-in `1.113.3` image pin, `lon up` prompts before moving that instance
+to n8n&#39;s stable image reference. Press Enter to accept the default `yes`, or type `n` to keep the existing
+image. Custom image references are not changed.
+
+JSON preview:
 
 ```bash test
 uv run lon --json --dry-run up --instance preview --port 5688
@@ -911,12 +961,47 @@ lon<span class="w"> </span>logs<span class="w"> </span>--follow
 <li>platform</li>
 <li>Docker CLI</li>
 <li>Docker daemon</li>
+<li>Docker backend, including Docker Desktop WSL integration detection</li>
 <li>Docker Compose</li>
 <li>port availability</li>
 </ul>
 <p>Help:</p>
-<p><code>bash test
-uv run lon doctor --help</code></p>
+<p>```bash test
+uv run lon doctor --help
+<div class="highlight"><pre><span></span><code>## Development
+
+### `lon dev wipe`
+
+Development-only destructive reset. Removes local-n8n Docker resources and local instance state for the
+current `$LOCAL_N8N_HOME`.
+
+This is not a normal user cleanup command. It is intended for local development when you want a clean slate.
+
+Options:
+
+- `--yes`, `-y`: skip the typed confirmation prompt.
+- `--images`: also remove known local-n8n Docker images, including the current built-in n8n image.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run dev wipe
+uv run lon --dry-run dev wipe --images
+</code></pre></div></p>
+<p>Run for real:</p>
+<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>dev<span class="w"> </span>wipe
+lon<span class="w"> </span>dev<span class="w"> </span>wipe<span class="w"> </span>--images
+</code></pre></div>
+<p>For real deletion, the command warns and asks you to type <code>yes</code>. Press Enter or type anything else to keep
+the default <code>no</code> choice. Use <code>--yes</code> only for development automation.</p>
+<p>It removes:</p>
+<ul>
+<li><code>local-n8n-*</code> Compose projects/containers/networks found through registered instances or instance dirs</li>
+<li>Docker volumes referenced by local-n8n state or instance naming</li>
+<li>known local-n8n Docker images when <code>--images</code> is passed</li>
+<li><code>$LOCAL_N8N_HOME/instances</code></li>
+<li><code>$LOCAL_N8N_HOME/state.db</code> and SQLite sidecar files</li>
+</ul>
 
 
 

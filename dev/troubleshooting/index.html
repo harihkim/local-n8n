@@ -445,6 +445,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#docker-desktop-wsl-integration-is-active" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Desktop WSL Integration Is Active
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docker-desktop-wsl-integration-is-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Desktop WSL Integration Is Off
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#docker-daemon-is-not-running" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -632,6 +654,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#docker-desktop-wsl-integration-is-active" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Desktop WSL Integration Is Active
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docker-desktop-wsl-integration-is-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Desktop WSL Integration Is Off
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#docker-daemon-is-not-running" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -744,10 +788,28 @@
 <p>Run:</p>
 <div class="highlight"><pre><span></span><code>lon<span class="w"> </span>doctor
 </code></pre></div>
-<p>If Docker CLI is missing, install Docker Engine inside your Linux or WSL environment. Docker Desktop integration is not the target path for this project.</p>
+<p>If Docker CLI is missing, install Docker Desktop for Windows and enable WSL integration for this distro, or
+install Docker Engine directly inside WSL/Linux.</p>
+<h2 id="docker-desktop-wsl-integration-is-active">Docker Desktop WSL Integration Is Active<a class="headerlink" href="#docker-desktop-wsl-integration-is-active" title="Permanent link">&para;</a></h2>
+<p>This is a valid setup. Docker Desktop runs its own WSL backend and exposes Docker commands inside your
+integrated WSL distro.</p>
+<p>If <code>lon doctor</code> reports Docker Desktop WSL integration as the active backend, Docker resources are managed by
+Docker Desktop rather than by a Docker Engine installed directly inside the current distro.</p>
+<h2 id="docker-desktop-wsl-integration-is-off">Docker Desktop WSL Integration Is Off<a class="headerlink" href="#docker-desktop-wsl-integration-is-off" title="Permanent link">&para;</a></h2>
+<p>If Docker Desktop is installed but <code>docker</code> is missing or the daemon is unreachable inside WSL, enable
+integration for this distro:</p>
+<ol>
+<li>Open Docker Desktop on Windows.</li>
+<li>Go to Settings &gt; Resources &gt; WSL Integration.</li>
+<li>Enable integration for your WSL distro.</li>
+<li>Apply the change and re-run:</li>
+</ol>
+<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>doctor
+</code></pre></div>
+<p>Alternatively, install Docker Engine directly inside WSL if you do not want to use Docker Desktop.</p>
 <h2 id="docker-daemon-is-not-running">Docker Daemon Is Not Running<a class="headerlink" href="#docker-daemon-is-not-running" title="Permanent link">&para;</a></h2>
-<p>If <code>doctor</code> reports that Docker is installed but unreachable, start Docker Engine and retry.</p>
-<p>Under WSL this may look like:</p>
+<p>If <code>doctor</code> reports that Docker is installed but unreachable, start Docker Desktop or Docker Engine and retry.</p>
+<p>Under WSL with Docker Engine installed directly, this may look like:</p>
 <div class="highlight"><pre><span></span><code>sudo<span class="w"> </span>service<span class="w"> </span>docker<span class="w"> </span>start
 </code></pre></div>
 <h2 id="port-is-already-in-use">Port Is Already in Use<a class="headerlink" href="#port-is-already-in-use" title="Permanent link">&para;</a></h2>
