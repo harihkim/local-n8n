@@ -13,11 +13,45 @@ uv run lon --help
 | `--verbose` | Print diagnostic details to stderr. |
 | `--json` | Emit one JSON object to stdout for finite commands. |
 | `--dry-run` | Preview mutating/browser commands without side effects. |
-| `--yes`, `-y` | Assume yes for confirmation prompts. Currently reserved for future prompts. |
+| `--yes`, `-y` | Assume yes for confirmation prompts where supported. |
 
-Human output goes to stderr. JSON output goes to stdout.
+Human output goes to stderr. JSON output goes to stdout. Lifecycle commands that may wait on Docker
+also stream Docker Compose output to stderr. In an interactive terminal, Docker's live progress display is
+preserved; in non-interactive output it falls back to plain streaming.
 
 ## Lifecycle
+
+### `lon init`
+
+Plan, initialize, start, and optionally open a local n8n instance. This is the guided first-run entry
+point for new users.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+- `--port`, `-p`: host port for n8n.
+- `--open` / `--no-open`: open the n8n web UI after startup. Default: `--open`.
+
+Examples:
+
+```bash
+lon init
+lon init --instance manual-check --port 5683 --no-open
+```
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run init --instance preview --port 5688 --no-open
+```
+
+JSON preview:
+
+```bash test
+uv run lon --json --dry-run init --instance preview --port 5688 --no-open
+```
+
+On first run, n8n may redirect to `/setup`; create the local owner account there.
 
 ### `lon up`
 
@@ -40,6 +74,10 @@ Safe preview:
 ```bash test
 uv run lon --dry-run up --instance preview --port 5688
 ```
+
+If local state still has the old built-in `1.113.3` image pin, `lon up` prompts before moving that instance
+to n8n's stable image reference. Press Enter to accept the default `yes`, or type `n` to keep the existing
+image. Custom image references are not changed.
 
 JSON preview:
 
@@ -168,6 +206,7 @@ Checks:
 - platform
 - Docker CLI
 - Docker daemon
+- Docker backend, including Docker Desktop WSL integration detection
 - Docker Compose
 - port availability
 
@@ -176,3 +215,42 @@ Help:
 ```bash test
 uv run lon doctor --help
 ```
+
+## Development
+
+### `lon dev wipe`
+
+Development-only destructive reset. Removes local-n8n Docker resources and local instance state for the
+current `$LOCAL_N8N_HOME`.
+
+This is not a normal user cleanup command. It is intended for local development when you want a clean slate.
+
+Options:
+
+- `--yes`, `-y`: skip the typed confirmation prompt.
+- `--images`: also remove known local-n8n Docker images, including the current built-in n8n image.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run dev wipe
+uv run lon --dry-run dev wipe --images
+```
+
+Run for real:
+
+```bash
+lon dev wipe
+lon dev wipe --images
+```
+
+For real deletion, the command warns and asks you to type `yes`. Press Enter or type anything else to keep
+the default `no` choice. Use `--yes` only for development automation.
+
+It removes:
+
+- `local-n8n-*` Compose projects/containers/networks found through registered instances or instance dirs
+- Docker volumes referenced by local-n8n state or instance naming
+- known local-n8n Docker images when `--images` is passed
+- `$LOCAL_N8N_HOME/instances`
+- `$LOCAL_N8N_HOME/state.db` and SQLite sidecar files

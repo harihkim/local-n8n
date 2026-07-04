@@ -2,9 +2,9 @@
 
 `lon` is a CLI for running a local self-hosted n8n instance with a path toward encrypted, portable backups.
 
-Phase 0 is intentionally small: it renders a Docker Compose project and starts/stops n8n. It does not
-install Docker, create a registry database, manage Windows bootstrap, configure tunnels, or create encrypted
-backups yet.
+The current alpha focuses on the local lifecycle: guided init, Docker Compose management, instance state,
+diagnostics, and docs. It does not automatically install Docker, manage Windows bootstrap, configure
+tunnels, or create encrypted backups yet.
 
 Documentation: https://harihkim.github.io/local-n8n/
 
@@ -21,7 +21,7 @@ On Windows, develop and run the CLI inside WSL Ubuntu. Automatic WSL/Docker prov
 After the first GitHub prerelease is tagged, install with:
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 ```
 
 For development inside this checkout, keep using `uv run lon ...`.
@@ -29,12 +29,13 @@ For development inside this checkout, keep using `uv run lon ...`.
 ## Usage
 
 ```bash
+uv run lon init
 uv run lon up
 uv run lon stop
 uv run lon down
 ```
 
-Phase 1 also includes:
+The local lifecycle also includes:
 
 ```bash
 uv run lon status
@@ -48,6 +49,8 @@ uv run lon doctor
 
 Lifecycle semantics:
 
+- `lon init`: guided first run; check Docker prerequisites, create/register/start the instance, and explain
+  the n8n local owner setup step.
 - `lon up`: create or recreate the Compose container and start n8n.
 - `lon list`: list registered instances with URL, container status, and volume.
 - `lon stop`: stop the existing container but keep it present, so `lon start` can resume it.
@@ -55,7 +58,7 @@ Lifecycle semantics:
 - `lon restart`: restart an existing container; if `lon down` removed it, use `lon up`.
 - `lon down`: remove the container/network but keep the Docker data volume.
 
-`lon up` writes instance files under `~/.config/local-n8n/instances/default/` unless
+`lon init` writes instance files under `~/.config/local-n8n/instances/default/` unless
 `LOCAL_N8N_HOME` is set. It generates `.env` once, stores a fixed `N8N_ENCRYPTION_KEY`, sets the file to
 mode `0600`, and does not overwrite that key on later runs.
 
@@ -79,16 +82,39 @@ uv run lon --yes status
 - `--json` emits a single JSON object to stdout for finite commands; human output remains on stderr.
 - `--dry-run` shows the planned action for mutating commands without writing files, changing state, opening
   browsers, or running Docker.
-- `--yes` is accepted globally for future confirmation prompts.
+- `--yes` is accepted globally for confirmation prompts where supported.
+
+Development-only reset:
+
+```bash
+uv run lon --dry-run dev wipe
+uv run lon --dry-run dev wipe --images
+uv run lon dev wipe
+```
+
+`dev wipe` removes local-n8n containers, volumes, instance files, and state for development clean-slate
+testing. For real deletion, it warns and asks you to type `yes`; pressing Enter keeps the default `no`.
+Pass `--images` to also remove known local-n8n Docker images, including the current built-in n8n image.
+Use `--yes` only for development automation.
 
 ## Release process
 
-CI runs lint, format check, type check, and tests on pushes and pull requests. Pushing a `v*` tag builds
-the wheel/source distribution and creates a GitHub prerelease with those artifacts attached. PyPI publishing
-is intentionally deferred until the MVP backup/restore loop is solid.
+CI runs lint, format check, `ty`, Pyrefly, tests, and docs build on pushes and pull requests. Pushing a
+`v*` tag builds the wheel/source distribution and creates a GitHub prerelease with those artifacts attached.
+PyPI publishing is intentionally deferred until the MVP backup/restore loop is solid.
 
 The documentation site is built with MkDocs Material and published with versioned URLs. The default docs
 version is `latest`, with `dev` available for unreleased work on `main`.
 
-The Phase 0 default n8n image is pinned in code for this CLI release. Because Phase 0 has no `lon update`
-command, moving to a newer n8n image requires a newer `lon` build or an explicit code/config change.
+The default n8n image follows n8n's official stable Docker image:
+
+```text
+docker.n8n.io/n8nio/n8n
+```
+
+Instances that still have the earlier built-in `1.113.3` image pin recorded in local state are prompted to
+move to this stable image reference on the next `lon up` or `lon init`. Press Enter to accept the default
+`yes`, or type `n` to keep the existing image. Custom image references are left unchanged.
+
+An explicit `lon update` command and user-selectable image/version settings are planned before the
+backup/restore workflow depends on image version metadata.

@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from local_n8n.app import app
+from local_n8n.compose.template import DEFAULT_IMAGE_REF, LEGACY_DEFAULT_IMAGE_REFS
+from local_n8n.core.dev import DevWipePlan, DevWipeResult, DevWipeTarget
 from local_n8n.core.doctor import DoctorCheck
+from local_n8n.core.init import InitResult, plan_init
 from local_n8n.core.runner import CommandResult
 from local_n8n.core.state import StateStore, new_instance_record
 
 runner = CliRunner()
+ComposeRunner = Callable[[list[str], Path], CommandResult]
+
+
+def _patch_compose_runners(monkeypatch: pytest.MonkeyPatch, fake_run: ComposeRunner) -> None:
+    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.run_streaming", fake_run)
 
 
 def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -20,13 +30,15 @@ def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
 
     assert result.exit_code == 0
-    assert "Starting n8n and waiting for the web UI" in result.stderr
+    assert "Ensuring local-n8n instance files" in result.stderr
+    assert "Starting Docker container" in result.stderr
+    assert "Waiting for n8n web UI" in result.stderr
     assert "n8n is running" in result.stderr
 
 
@@ -38,7 +50,7 @@ def test_cli_up_friendly_error_without_traceback(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         raise FileNotFoundError("docker")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["up"])
@@ -57,12 +69,12 @@ def test_cli_down_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = runner.invoke(app, ["down"])
 
     assert result.exit_code == 0
-    assert "Removing n8n container and keeping the data volume" in result.stderr
+    assert "Running Docker Compose down" in result.stderr
     assert "n8n container removed" in result.stderr
 
 
@@ -75,12 +87,12 @@ def test_cli_stop_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = runner.invoke(app, ["stop"])
 
     assert result.exit_code == 0
-    assert "Stopping n8n container" in result.stderr
+    assert "Running Docker Compose stop" in result.stderr
     assert "Container kept" in result.stderr
 
 
@@ -97,7 +109,7 @@ def test_cli_start_fails_fast_when_container_is_not_present(
             return CommandResult(args=args, returncode=0, stdout="", stderr="")
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["start"])
@@ -120,7 +132,7 @@ def test_cli_restart_fails_fast_when_container_is_not_present(
             return CommandResult(args=args, returncode=0, stdout="", stderr="")
         return CommandResult(args=args, returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["restart"])
@@ -139,7 +151,7 @@ def test_cli_status_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["status"])
@@ -159,7 +171,7 @@ def test_cli_verbose_prints_diagnostics(tmp_path: Path, monkeypatch: pytest.Monk
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["--verbose", "status"])
@@ -179,7 +191,7 @@ def test_cli_json_status_writes_single_stdout_object(
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["--json", "status"])
@@ -211,6 +223,321 @@ def test_cli_json_error_writes_error_object(
         "ok": False,
     }
     assert "Error:" in result.stderr
+
+
+def test_cli_init_dry_run_outputs_plan_without_side_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(
+        app,
+        ["--dry-run", "init", "--instance", "preview", "--port", "5688", "--no-open"],
+    )
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would check: Docker prerequisites" in result.stderr
+    assert "would write" in result.stderr
+    assert "would open the n8n web UI" not in result.stderr
+    assert not (tmp_path / "instances").exists()
+    assert not (tmp_path / "state.db").exists()
+
+
+def test_cli_json_dry_run_init_outputs_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--json", "--dry-run", "init", "--instance", "preview"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["dry_run"] is True
+    assert payload["command"] == "init"
+    assert payload["instance"] == "preview"
+    assert payload["would"]["check_prerequisites"] is True
+    assert payload["would"]["start"] is True
+
+
+def test_cli_init_success_prints_owner_setup_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_init_instance(
+        instance_name: str,
+        port: int | None,
+        open_browser: bool,
+        progress: Callable[[str], None],
+        image_update_confirm: Callable[[str, str], bool] | None,
+    ) -> InitResult:
+        assert instance_name == "preview"
+        assert port == 5688
+        assert not open_browser
+        assert image_update_confirm is not None
+        progress("fake init progress")
+        return InitResult(
+            plan=plan_init(instance_name=instance_name, port=port, open_browser=open_browser),
+            started=True,
+            opened=False,
+        )
+
+    monkeypatch.setattr("local_n8n.app.init_instance", fake_init_instance)
+
+    result = runner.invoke(app, ["init", "--instance", "preview", "--port", "5688", "--no-open"])
+
+    assert result.exit_code == 0
+    assert "fake init progress" in result.stderr
+    assert "local-n8n is ready" in result.stderr
+    assert "http://localhost:5688" in result.stderr
+    assert "redirects to /setup" in result.stderr
+
+
+def test_cli_up_prompts_for_legacy_image_update_with_yes_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    legacy_image_ref = LEGACY_DEFAULT_IMAGE_REFS[0]
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="default",
+                compose_path=instance_dir / "docker-compose.yml",
+                data_volume="n8n_default_data",
+                port=5678,
+                image_ref=legacy_image_ref,
+                enc_key_ref=instance_dir / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    _patch_compose_runners(monkeypatch, fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.wait_for_web_ui_ready", lambda url: True)
+
+    result = runner.invoke(app, ["up"], input="\n")
+
+    assert result.exit_code == 0
+    assert "n8n image update available" in result.stderr
+    assert "Update n8n image now? (Y/n)" in result.stderr
+    assert "n8n is running" in result.stderr
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.image_ref == DEFAULT_IMAGE_REF
+
+
+def test_cli_up_can_decline_legacy_image_update(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    legacy_image_ref = LEGACY_DEFAULT_IMAGE_REFS[0]
+    with StateStore(tmp_path / "state.db") as state:
+        state.upsert_instance(
+            new_instance_record(
+                name="default",
+                compose_path=instance_dir / "docker-compose.yml",
+                data_volume="n8n_default_data",
+                port=5678,
+                image_ref=legacy_image_ref,
+                enc_key_ref=instance_dir / ".env",
+                created_at="2026-07-01T00:00:00Z",
+            )
+        )
+
+    def fail_run(args: list[str], cwd: Path) -> CommandResult:
+        raise AssertionError("up should not run Docker after declined image update")
+
+    _patch_compose_runners(monkeypatch, fail_run)
+
+    result = runner.invoke(app, ["up"], input="n\n")
+
+    assert result.exit_code == 1
+    assert "n8n image update cancelled" in result.stderr
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.image_ref == legacy_image_ref
+
+
+def test_cli_dev_wipe_defaults_to_no_without_typed_yes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fail_wipe(*args: object, **kwargs: object) -> None:
+        raise AssertionError("wipe_dev should not run without typed yes")
+
+    monkeypatch.setattr("local_n8n.app.wipe_dev", fail_wipe)
+
+    result = runner.invoke(app, ["dev", "wipe"], input="\n")
+
+    assert result.exit_code == 1
+    assert "Development wipe warning" in result.stderr
+    assert "Type yes to continue" in result.stderr
+    assert "Development wipe cancelled" in result.stderr
+
+
+def test_cli_dev_wipe_with_images_defaults_to_no_without_typed_yes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fail_wipe(*args: object, **kwargs: object) -> None:
+        raise AssertionError("wipe_dev should not run without typed yes")
+
+    monkeypatch.setattr("local_n8n.app.wipe_dev", fail_wipe)
+
+    result = runner.invoke(app, ["dev", "wipe", "--images"], input="\n")
+
+    assert result.exit_code == 1
+    assert "Development wipe warning" in result.stderr
+    assert "It will also delete known local-n8n Docker images" in result.stderr
+    assert "Type yes to continue" in result.stderr
+    assert "Development wipe cancelled" in result.stderr
+
+
+def test_cli_dev_wipe_dry_run_does_not_require_confirmation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    (tmp_path / "instances" / "preview").mkdir(parents=True)
+
+    result = runner.invoke(app, ["--dry-run", "dev", "wipe"])
+
+    assert result.exit_code == 0
+    assert "Development wipe preview" in result.stderr
+    assert "would remove project: local-n8n-preview" in result.stderr
+    assert (tmp_path / "instances" / "preview").exists()
+
+
+def test_cli_dev_wipe_dry_run_with_images_lists_images(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    (tmp_path / "instances" / "preview").mkdir(parents=True)
+
+    result = runner.invoke(app, ["--dry-run", "dev", "wipe", "--images"])
+
+    assert result.exit_code == 0
+    assert "would remove image" in result.stderr
+    assert DEFAULT_IMAGE_REF in result.stderr
+
+
+def test_cli_dev_wipe_dry_run_with_images_lists_default_image_without_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--dry-run", "dev", "wipe", "--images"])
+
+    assert result.exit_code == 0
+    assert "would remove image" in result.stderr
+    assert "Nothing local-n8n related found" not in result.stderr
+
+
+def test_cli_dev_wipe_typed_yes_runs_wipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    target = DevWipeTarget(
+        name="preview",
+        project_name="local-n8n-preview",
+        compose_path=tmp_path / "instances" / "preview" / "docker-compose.yml",
+        volume_name="n8n_preview_data",
+    )
+    plan = DevWipePlan(
+        config_home=tmp_path,
+        targets=(target,),
+        volume_names=("n8n_preview_data",),
+        image_refs=(),
+        local_paths=(tmp_path / "instances", tmp_path / "state.db"),
+    )
+
+    monkeypatch.setattr("local_n8n.app.plan_dev_wipe", lambda include_images=False: plan)
+
+    def fake_wipe(
+        plan: DevWipePlan,
+        progress: Callable[[str], None] | None = None,
+    ) -> DevWipeResult:
+        if progress is not None:
+            progress("fake wipe progress")
+        return DevWipeResult(
+            plan=plan,
+            docker_commands=(("docker", "compose", "down"),),
+            deleted_paths=(tmp_path / "instances",),
+        )
+
+    monkeypatch.setattr("local_n8n.app.wipe_dev", fake_wipe)
+
+    result = runner.invoke(app, ["dev", "wipe"], input="yes\n")
+
+    assert result.exit_code == 0
+    assert "Development wipe confirmed" in result.stderr
+    assert "fake wipe progress" in result.stderr
+    assert "local-n8n development data wiped" in result.stderr
+
+
+def test_cli_dev_wipe_yes_with_images_runs_wipe_without_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    plan = DevWipePlan(
+        config_home=tmp_path,
+        targets=(),
+        volume_names=(),
+        image_refs=("example.test/n8n:custom@sha256:abc",),
+        local_paths=(),
+    )
+    include_images_values: list[bool] = []
+
+    def fake_plan(include_images: bool = False) -> DevWipePlan:
+        include_images_values.append(include_images)
+        return plan
+
+    def fake_wipe(
+        plan: DevWipePlan,
+        progress: Callable[[str], None] | None = None,
+    ) -> DevWipeResult:
+        return DevWipeResult(
+            plan=plan,
+            docker_commands=(("docker", "image", "rm"),),
+            deleted_paths=(),
+        )
+
+    monkeypatch.setattr("local_n8n.app.plan_dev_wipe", fake_plan)
+    monkeypatch.setattr("local_n8n.app.wipe_dev", fake_wipe)
+
+    result = runner.invoke(app, ["dev", "wipe", "--yes", "--images"])
+
+    assert result.exit_code == 0
+    assert include_images_values == [True]
+    assert "Development wipe warning" not in result.stderr
+    assert "images: 1" in result.stderr
+
+
+def test_cli_dev_wipe_yes_with_images_after_state_gone_removes_default_image_refs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    captured: list[list[str]] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        captured.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.dev.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.dev.run_streaming", fake_run)
+
+    result = runner.invoke(app, ["dev", "wipe", "--yes", "--images"])
+
+    assert result.exit_code == 0
+    assert "images: 1" in result.stderr
+    assert ["docker", "image", "rm", "--force", DEFAULT_IMAGE_REF] in captured
 
 
 def test_cli_dry_run_up_does_not_call_lifecycle(
@@ -256,7 +583,7 @@ def test_cli_yes_global_flag_is_accepted(tmp_path: Path, monkeypatch: pytest.Mon
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
     monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
 
     result = runner.invoke(app, ["--yes", "status"])
@@ -282,7 +609,7 @@ def test_cli_list_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     def fake_run(args: list[str], cwd: Path) -> CommandResult:
         return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
 
-    monkeypatch.setattr("local_n8n.core.instance.run", fake_run)
+    _patch_compose_runners(monkeypatch, fake_run)
 
     result = runner.invoke(app, ["list"])
 

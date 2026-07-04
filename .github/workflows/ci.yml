@@ -36,6 +36,9 @@ jobs:
       - name: Type check
         run: uv run --python 3.13 ty check
 
+      - name: Pyrefly type check
+        run: uv run --python 3.13 pyrefly check
+
       - name: Test
         run: uv run --python 3.13 pytest tests
 

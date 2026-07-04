@@ -7,7 +7,7 @@ Automatic WSL and Docker provisioning is planned for a later phase. For now, `lo
 ## 1. Install
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 ```
 
 Inside the repository checkout, use:
@@ -22,12 +22,13 @@ uv run lon --help
 lon doctor
 ```
 
-`doctor` is read-only. It checks platform, Docker CLI, Docker daemon, Docker Compose, and port availability.
+`doctor` is read-only. It checks platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and
+port availability. Inside WSL, it also reports when Docker Desktop WSL integration is the active backend.
 
-## 3. Start n8n
+## 3. Initialize and Start n8n
 
 ```bash
-lon up
+lon init
 ```
 
 This creates the default instance under:
@@ -42,6 +43,9 @@ It writes:
 - `.env` with `N8N_ENCRYPTION_KEY`
 
 The `.env` file is created once and preserved on later runs.
+
+`init` starts n8n, opens the browser when possible, and explains the local owner setup step.
+The generated Compose file uses n8n's official stable Docker image, `docker.n8n.io/n8nio/n8n`.
 
 ## 4. Open n8n
 
@@ -78,7 +82,7 @@ lon up
 Use `--instance` to create separate local instances:
 
 ```bash
-lon up --instance manual-check --port 5683
+lon init --instance manual-check --port 5683
 lon status --instance manual-check
 lon down --instance manual-check
 ```

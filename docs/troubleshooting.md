@@ -8,13 +8,38 @@ Run:
 lon doctor
 ```
 
-If Docker CLI is missing, install Docker Engine inside your Linux or WSL environment. Docker Desktop integration is not the target path for this project.
+If Docker CLI is missing, install Docker Desktop for Windows and enable WSL integration for this distro, or
+install Docker Engine directly inside WSL/Linux.
+
+## Docker Desktop WSL Integration Is Active
+
+This is a valid setup. Docker Desktop runs its own WSL backend and exposes Docker commands inside your
+integrated WSL distro.
+
+If `lon doctor` reports Docker Desktop WSL integration as the active backend, Docker resources are managed by
+Docker Desktop rather than by a Docker Engine installed directly inside the current distro.
+
+## Docker Desktop WSL Integration Is Off
+
+If Docker Desktop is installed but `docker` is missing or the daemon is unreachable inside WSL, enable
+integration for this distro:
+
+1. Open Docker Desktop on Windows.
+2. Go to Settings > Resources > WSL Integration.
+3. Enable integration for your WSL distro.
+4. Apply the change and re-run:
+
+```bash
+lon doctor
+```
+
+Alternatively, install Docker Engine directly inside WSL if you do not want to use Docker Desktop.
 
 ## Docker Daemon Is Not Running
 
-If `doctor` reports that Docker is installed but unreachable, start Docker Engine and retry.
+If `doctor` reports that Docker is installed but unreachable, start Docker Desktop or Docker Engine and retry.
 
-Under WSL this may look like:
+Under WSL with Docker Engine installed directly, this may look like:
 
 ```bash
 sudo service docker start

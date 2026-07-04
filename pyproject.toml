@@ -1,6 +1,6 @@
 [project]
 name = "local-n8n"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Cross-platform CLI for a local, portable, self-hosted n8n (lon)."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -16,6 +16,7 @@ lon = "local_n8n.app:main"
 dev = [
     "mike>=2.1",
     "mkdocs-material>=9.5",
+    "pyrefly>=1.1.1",
     "pytest>=8",
     "pytest-mock>=3.14",
     "ruff>=0.6",
@@ -39,3 +40,31 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ty.environment]
+python-platform = "linux"
+python-version = "3.13"
+root = ["./src", "./tests"]
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.src]
+include = ["src", "tests"]
+respect-ignore-files = true
+
+[tool.ty.terminal]
+error-on-warning = true
+output-format = "full"
+
+[tool.pyrefly]
+preset = "strict"
+min-severity = "warn"
+project-includes = [
+    "src/**/*.py",
+    "tests/**/*.py",
+]
+search-path = ["src"]
+python-platform = "linux"
+python-version = "3.13"
+output-format = "full-text"

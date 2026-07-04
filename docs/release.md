@@ -9,8 +9,8 @@ PyPI publishing is deferred until the core backup/restore MVP loop is stable.
 From a clean `main`:
 
 ```bash
-git tag -a v0.1.0a1 -m "v0.1.0a1"
-git push origin v0.1.0a1
+git tag -a v0.1.0a2 -m "v0.1.0a2"
+git push origin v0.1.0a2
 ```
 
 The release workflow runs checks, builds:
@@ -23,7 +23,7 @@ and creates a GitHub prerelease with those artifacts attached.
 ## Install From a Release
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a1
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
 ```
 
 ## Docs Release
@@ -35,7 +35,7 @@ The default docs version is `latest`, which points at the newest released docs.
 Useful commands:
 
 ```bash
-uv run --python 3.13 mike deploy --push --update-aliases v0.1.0a1 latest
+uv run --python 3.13 mike deploy --push --update-aliases v0.1.0a2 latest
 uv run --python 3.13 mike set-default --push latest
 ```
 
