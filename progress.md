@@ -2,7 +2,8 @@
 
 ## Current phase
 
-Phase 2 branch: guided `lon init` first-run setup.
+Phase 2 is released as `v0.1.0a2`. Next implementation phase: Phase 3a crypto core for encrypted
+backup/restore.
 
 ## Implemented
 
@@ -43,7 +44,8 @@ Phase 2 branch: guided `lon init` first-run setup.
   `/setup` owner-account step.
 - Added WSL Docker backend detection to `lon doctor` / `lon init` prerequisites so Docker Desktop WSL
   integration is accepted as a valid backend and explained clearly.
-- Prepared the Phase 2 prerelease bump to `0.1.0a2` so the GitHub release can be tagged from merged `main`.
+- Released Phase 2 as GitHub prerelease `v0.1.0a2` with wheel/source artifacts and versioned docs published
+  as `latest`.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -153,6 +155,15 @@ Fixes:
 - Strengthened readiness so a generic HTTP response like `Cannot GET /` is not accepted as ready.
 - Treated n8n's first-run `/setup` redirect as ready, because setup/login/editor are all valid n8n web UI states.
 - Added `--verbose` debug output to make readiness and Docker command behavior easier to diagnose.
+
+Follow-up manual testing showed one more transient page:
+
+```text
+n8n is starting up. Please wait
+```
+
+That page contains the string `n8n`, so the earlier readiness heuristic accepted it too early. Fixed by
+treating the startup/waiting page as not ready and continuing to poll until setup/login/editor responds.
 
 ### Persistent CLI logs are still a separate decision
 
@@ -342,5 +353,7 @@ with default `no` unless the user types `yes` or passes `--yes`.
 
 ## Next phase
 
-Phase 2 implementation is ready for manual smoke testing and PR review. Follow-up candidates after the
-Phase 2 merge: persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.
+Start Phase 3a: implement `core/crypto.py` as a library-only encrypted bundle core with framing,
+canonical JSON headers, AES-256-GCM payload encryption, Argon2id passphrase/recovery slots, and tamper
+tests. Follow-up candidates after the Phase 3 core loop: persistent diagnostic file logging, `lon update`,
+and user config for `default-image-ref`.
