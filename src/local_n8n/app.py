@@ -11,7 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from local_n8n.core.backup import backup_instance, restore_instance
+from local_n8n.core.backup import backup_instance, restore_instance, reveal_recovery_code
 from local_n8n.core.config import build_instance_config
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, plan_dev_wipe, wipe_dev
 from local_n8n.core.diagnostics import debug, set_verbose
@@ -48,7 +48,13 @@ dev_app = typer.Typer(
     help="Development-only destructive commands.",
     no_args_is_help=True,
 )
+recovery_app = typer.Typer(
+    add_completion=False,
+    help="Manage backup recovery material.",
+    no_args_is_help=True,
+)
 app.add_typer(dev_app, name="dev")
+app.add_typer(recovery_app, name="recovery")
 console = Console(stderr=True)
 options = CliOptions()
 
@@ -207,6 +213,21 @@ def _restore_dry_run_payload(
     }
 
 
+def _recovery_show_dry_run_payload(*, instance: str) -> dict[str, Any]:
+    config = build_instance_config(instance)
+    return {
+        "ok": True,
+        "command": "recovery show",
+        "dry_run": True,
+        "instance": instance,
+        "would": {
+            "prompt_passphrase": True,
+            "unlock_recovery_material": _path(config.instance_dir / "recovery.wrapped"),
+            "print_recovery_code": True,
+        },
+    }
+
+
 def _emit_dry_run(payload: dict[str, Any]) -> None:
     if options.json_output:
         _emit_json(payload)
@@ -262,6 +283,19 @@ def _emit_restore_dry_run(payload: dict[str, Any]) -> None:
             f"[dim]would override restored port: {payload['would']['port_override']}[/dim]"
         )
     console.print("[dim]would restore Docker volume, write instance files, and start n8n[/dim]")
+
+
+def _emit_recovery_show_dry_run(payload: dict[str, Any]) -> None:
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: recovery show[/dim]")
+    console.print(f"[dim]instance: {payload['instance']}[/dim]")
+    console.print("[dim]would prompt for backup passphrase[/dim]")
+    console.print(f"[dim]would unlock: {payload['would']['unlock_recovery_material']}[/dim]")
+    console.print("[dim]would print the recovery code[/dim]")
 
 
 def _init_payload(
@@ -449,11 +483,46 @@ def _prompt_backup_passphrase() -> str:
     return first
 
 
+def _prompt_existing_backup_passphrase() -> str:
+    passphrase = getpass.getpass("Backup passphrase: ", stream=sys.stderr)
+    if not passphrase:
+        raise UsageError("Backup passphrase cannot be empty.")
+    return passphrase
+
+
 def _prompt_restore_secret() -> str:
     secret = getpass.getpass("Backup passphrase or recovery code: ", stream=sys.stderr)
     if not secret:
         raise UsageError("Backup passphrase or recovery code cannot be empty.")
     return secret
+
+
+@recovery_app.command("show")
+def recovery_show(
+    instance: Annotated[str, typer.Option("--instance", "-i", help="Instance name.")] = "default",
+) -> None:
+    """Show the active backup recovery code after passphrase authorization."""
+    if options.dry_run:
+        _emit_recovery_show_dry_run(_recovery_show_dry_run_payload(instance=instance))
+        return
+
+    try:
+        passphrase = _prompt_existing_backup_passphrase()
+        recovery_code = reveal_recovery_code(instance, passphrase=passphrase)
+    except LonError as error:
+        _handle_error(error)
+
+    console.print("[bold yellow]Recovery code:[/bold yellow]")
+    console.print(f"[bold yellow]{recovery_code}[/bold yellow]")
+    console.print("[dim]Store it somewhere safe. Do not share it.[/dim]")
+    _maybe_emit_json(
+        {
+            "ok": True,
+            "command": "recovery show",
+            "instance": instance,
+            "recovery_code_shown": True,
+        }
+    )
 
 
 @dev_app.command("wipe")

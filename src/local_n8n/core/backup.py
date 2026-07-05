@@ -305,6 +305,42 @@ def restore_instance(
         )
 
 
+def reveal_recovery_code(instance_name: str, *, passphrase: str) -> str:
+    with StateStore.open_default() as state:
+        record = state.get_instance(instance_name)
+        if record is None:
+            raise InstanceNotFoundError(
+                f"Instance {instance_name!r} is not registered.",
+                hint="Run `lon init` first to create it.",
+            )
+
+    config = build_instance_config(
+        record.name,
+        record.port,
+        data_volume=record.data_volume,
+        image_ref=record.image_ref,
+    )
+    recovery_path = config.instance_dir / "recovery.wrapped"
+    if not recovery_path.exists():
+        raise LonError(
+            f"Recovery material for instance {instance_name!r} does not exist.",
+            hint="Run `lon backup` first to create and display a recovery code.",
+        )
+
+    try:
+        opened = open_bundle(
+            recovery_path.read_bytes(),
+            secret=passphrase,
+            slot_type="passphrase",
+        )
+    except (BundleAuthenticationError, BundleFormatError) as exc:
+        raise LonError(
+            "Could not unlock recovery material.",
+            hint="Use the passphrase that was used when backups were first enabled.",
+        ) from exc
+    return opened.payload.decode("utf-8")
+
+
 def _replace_rollback_context(
     record: InstanceRecord,
     config: InstanceConfig,

@@ -55,6 +55,8 @@ backup/restore.
 - Started Phase 3c with `lon restore`: decrypt/verify bundle payload, refuse existing instances unless
   `--replace`, restore to a fresh generated Docker volume, rehydrate `.env`/Compose, register state, start
   n8n, and wait for readiness.
+- Started Phase 3d admin polish with `lon recovery show`: passphrase-authorized recovery-code display from
+  local `recovery.wrapped` material.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -426,6 +428,19 @@ passphrase unlock does not reveal the recovery code, and a recovery-code unlock 
 passphrase needed to wrap future local recovery material. The next backup creates a fresh recovery
 generation and prints the new recovery code once.
 
+### Phase 3d recovery show
+
+Added the first Phase 3d admin command:
+
+- `lon recovery show` prompts for the backup passphrase
+- it unlocks the instance's local `recovery.wrapped` file through the passphrase slot
+- it prints the active recovery code only on explicit request
+- `--dry-run` previews the prompt/unlock/display steps without reading or printing the secret
+- `--json` reports that the recovery code was shown without including the secret in JSON
+
+Remaining Phase 3d admin commands: `lon recovery rotate`, `lon passphrase change`, and
+`lon passphrase reset`.
+
 ## Verification
 
 - `uv run --python 3.13 pytest tests`
@@ -449,7 +464,6 @@ generation and prints the new recovery code once.
 
 ## Next phase
 
-Continue Phase 3c hardening and manual Docker testing: perform backup→wipe→restore, verify restored n8n
-data, tighten replace rollback behavior, then prepare the MVP portability checkpoint. Follow-up candidates
-after the Phase 3 core loop: persistent diagnostic file logging, `lon update`, and user config for
-`default-image-ref`.
+Continue Phase 3d admin polish: implement `lon recovery rotate`, then `lon passphrase change` and
+`lon passphrase reset`. Follow-up candidates after the Phase 3 core loop: persistent diagnostic file
+logging, `lon update`, and user config for `default-image-ref`.

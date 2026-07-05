@@ -405,6 +405,39 @@ def test_cli_restore_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert "pre-restore backup" in result.stderr
 
 
+def test_cli_recovery_show_dry_run_outputs_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--dry-run", "recovery", "show", "--instance", "default"])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would prompt for backup passphrase" in result.stderr
+    assert "would print the recovery code" in result.stderr
+
+
+def test_cli_recovery_show_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_reveal_recovery_code(instance_name: str, *, passphrase: str) -> str:
+        assert instance_name == "default"
+        assert passphrase == "backup-passphrase"
+        return "recovery-code"
+
+    monkeypatch.setattr(
+        "local_n8n.app._prompt_existing_backup_passphrase", lambda: "backup-passphrase"
+    )
+    monkeypatch.setattr("local_n8n.app.reveal_recovery_code", fake_reveal_recovery_code)
+
+    result = runner.invoke(app, ["recovery", "show"])
+
+    assert result.exit_code == 0
+    assert "Recovery code:" in result.stderr
+    assert "recovery-code" in result.stderr
+
+
 def test_cli_up_prompts_for_legacy_image_update_with_yes_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

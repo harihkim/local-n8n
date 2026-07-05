@@ -9,7 +9,12 @@ from typing import Any, cast
 
 import pytest
 
-from local_n8n.core.backup import BackupResult, backup_instance, restore_instance
+from local_n8n.core.backup import (
+    BackupResult,
+    backup_instance,
+    restore_instance,
+    reveal_recovery_code,
+)
 from local_n8n.core.crypto import open_bundle, seal_bundle
 from local_n8n.core.errors import CommandFailedError
 from local_n8n.core.runner import CommandResult
@@ -163,6 +168,45 @@ def test_backup_instance_reuses_existing_recovery_material(
     assert second.recovery_code is None
     opened = open_bundle(second.bundle_path.read_bytes(), secret="recovery-code")
     assert _manifest_from_payload(opened.payload)["instance"] == "default"
+
+
+def test_reveal_recovery_code_unlocks_existing_recovery_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if args[:2] == ["docker", "compose"] and "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout="", stderr="")
+        if args[:2] == ["docker", "run"]:
+            _write_volume_tar(cwd / "volume.tar")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+    backup_instance(
+        "default",
+        passphrase="backup-passphrase",
+        output_path=tmp_path / "first.n8nbundle",
+        recovery_code_factory=lambda: "recovery-code",
+    )
+
+    assert reveal_recovery_code("default", passphrase="backup-passphrase") == "recovery-code"
+
+
+def test_reveal_recovery_code_requires_existing_recovery_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+
+    with pytest.raises(Exception) as exc_info:
+        reveal_recovery_code("default", passphrase="backup-passphrase")
+
+    assert "does not exist" in str(exc_info.value)
 
 
 def test_restore_instance_restores_bundle_to_new_instance(

@@ -175,6 +175,24 @@ By default, `restore` refuses to overwrite an existing instance. Use `--replace`
 replace that instance; the current implementation first attempts a pre-restore encrypted backup with the
 same secret before it stops and replaces the existing instance.
 
+### `lon recovery show`
+
+Show the active backup recovery code after authorizing with the backup passphrase.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run recovery show
+```
+
+`recovery show` reads the local `recovery.wrapped` file for the instance, unlocks it with the backup
+passphrase, and prints the recovery code. Use it only when you intentionally need to store or verify the
+code; normal backups reuse the wrapped recovery material without printing the code again.
+
 ## Inspection
 
 ### `lon status`
