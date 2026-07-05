@@ -418,10 +418,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#default-instance" class="md-nav__link">
+  <a href="#basic-instance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Default Instance
+        Basic Instance
       
     </span>
   </a>
@@ -466,6 +466,17 @@
     <span class="md-ellipsis">
       
         Development Wipe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#legacy-image-update-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legacy Image Update Prompt
       
     </span>
   </a>
@@ -599,10 +610,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#default-instance" class="md-nav__link">
+  <a href="#basic-instance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Default Instance
+        Basic Instance
       
     </span>
   </a>
@@ -653,6 +664,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#legacy-image-update-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legacy Image Update Prompt
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -675,6 +697,9 @@
 
 <h1 id="manual-testing">Manual Testing<a class="headerlink" href="#manual-testing" title="Permanent link">&para;</a></h1>
 <p>Use this checklist when validating a release candidate locally.</p>
+<p>When using a temporary <code>LOCAL_N8N_HOME</code>, also use a unique <code>--instance</code> name for Docker-backed tests.
+<code>LOCAL_N8N_HOME</code> isolates files and state, but Docker project and volume names are derived from the
+instance name and are global on the Docker daemon.</p>
 <h2 id="baseline">Baseline<a class="headerlink" href="#baseline" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>--help
 uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>doctor
@@ -686,10 +711,10 @@ uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>
 <li><code>doctor</code> reports platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and port state</li>
 <li><code>init</code> dry-run explains planned writes/start/open behavior without side effects</li>
 </ul>
-<h2 id="default-instance">Default Instance<a class="headerlink" href="#default-instance" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>init<span class="w"> </span>--no-open
-uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>status
-uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>open
+<h2 id="basic-instance">Basic Instance<a class="headerlink" href="#basic-instance" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">LOCAL_N8N_HOME</span><span class="o">=</span>/tmp/local-n8n-manual-default
+uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>init<span class="w"> </span>--instance<span class="w"> </span>manual-default<span class="w"> </span>--port<span class="w"> </span><span class="m">5689</span><span class="w"> </span>--no-open
+uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>status<span class="w"> </span>--instance<span class="w"> </span>manual-default
 </code></pre></div>
 <p>Expected:</p>
 <ul>
@@ -699,7 +724,7 @@ uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>
 <li>first-run n8n may redirect to <code>/setup</code></li>
 </ul>
 <p>Clean up:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>down
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>dev<span class="w"> </span>wipe<span class="w"> </span>--yes
 </code></pre></div>
 <h2 id="named-instance">Named Instance<a class="headerlink" href="#named-instance" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>init<span class="w"> </span>--instance<span class="w"> </span>manual-check<span class="w"> </span>--port<span class="w"> </span><span class="m">5683</span><span class="w"> </span>--no-open
@@ -758,13 +783,34 @@ uv run lon --dry-run dev wipe --images
 - real deletion warns and asks you to type `yes`
 - pressing Enter keeps the default `no` choice and deletes nothing
 
-## Legacy Image Update Prompt
+## Backup, Restore, And Recovery Admin
 
-If an instance was created with the earlier built-in `1.113.3` image pin, run:
+Use an isolated home so this test does not touch a normal instance:
 
 ```bash
-uv run lon up
+export LOCAL_N8N_HOME=/tmp/local-n8n-phase3-manual
+uv run lon up --instance phase3-manual --port 5687
+uv run lon backup --instance phase3-manual --yes --output /tmp/local-n8n-phase3-manual/phase3.n8nbundle
+uv run lon recovery show --instance phase3-manual
+uv run lon recovery rotate --instance phase3-manual
+uv run lon passphrase change --instance phase3-manual
+uv run lon dev wipe --yes
+uv run lon restore /tmp/local-n8n-phase3-manual/phase3.n8nbundle
+uv run lon status --instance phase3-manual
+uv run lon dev wipe --yes
 </code></pre></div></p>
+<p>Expected:</p>
+<ul>
+<li>first backup prints a recovery code once and writes <code>recovery.wrapped</code></li>
+<li>later backup/recovery admin commands do not print secrets unless explicitly requested</li>
+<li>restore starts n8n and <code>status</code> reports <code>running</code> / <code>reachable</code></li>
+<li>restored instances defer local <code>recovery.wrapped</code> creation until the next backup</li>
+<li><code>passphrase reset</code> requires a running, reachable instance and warns that old bundles are not rekeyed</li>
+</ul>
+<h2 id="legacy-image-update-prompt">Legacy Image Update Prompt<a class="headerlink" href="#legacy-image-update-prompt" title="Permanent link">&para;</a></h2>
+<p>If an instance was created with the earlier built-in <code>1.113.3</code> image pin, run:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>lon<span class="w"> </span>up
+</code></pre></div>
 <p>Expected:</p>
 <ul>
 <li>the CLI prints the current image and the new stable image reference</li>

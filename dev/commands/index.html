@@ -435,6 +435,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#portability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Portability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Portability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lon-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon backup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lon-recovery-show" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon recovery show
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lon-passphrase-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon passphrase change
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inspection" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -710,6 +760,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#portability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Portability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Portability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lon-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon backup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lon-recovery-show" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon recovery show
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lon-passphrase-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon passphrase change
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inspection" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -903,6 +1003,105 @@ uv run lon --json --dry-run up --instance preview --port 5688
 <li><code>--instance</code>, <code>-i</code>: instance name. Default: <code>default</code>.</li>
 </ul>
 <p>If the container is not present, <code>restart</code> fails fast and suggests <code>lon up</code>.</p>
+<h2 id="portability">Portability<a class="headerlink" href="#portability" title="Permanent link">&para;</a></h2>
+<h3 id="lon-backup"><code>lon backup</code><a class="headerlink" href="#lon-backup" title="Permanent link">&para;</a></h3>
+<p>Create an encrypted local <code>.n8nbundle</code> for a registered instance.</p>
+<p>Options:</p>
+<ul>
+<li><code>--instance</code>, <code>-i</code>: instance name. Default: <code>default</code>.</li>
+<li><code>--output</code>, <code>-o</code>: backup bundle path. Default: <code>$LOCAL_N8N_HOME/backups/&lt;instance&gt;-&lt;timestamp&gt;.n8nbundle</code>.</li>
+<li><code>--yes</code>, <code>-y</code>: skip the downtime confirmation prompt.</li>
+</ul>
+<p>Safe preview:</p>
+<p>```bash test
+uv run lon --dry-run backup --instance preview
+<div class="highlight"><pre><span></span><code>`backup` briefly stops n8n if the container is running, captures the Docker volume, writes an encrypted
+bundle, records backup metadata in `state.db`, and then starts n8n again if it was running before.
+
+The first backup creates local recovery material and prints a recovery code once. Store that code somewhere
+safe; future backups reuse the local wrapped recovery material.
+
+### `lon restore`
+
+Restore an encrypted local `.n8nbundle`.
+
+Options:
+
+- `--replace`: replace an existing instance after first creating a pre-restore safety backup.
+- `--port`, `-p`: override the restored n8n port.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run restore /tmp/example.n8nbundle
+</code></pre></div></p>
+<p><code>restore</code> decrypts the bundle with either the backup passphrase or recovery code, verifies the manifest and
+payload checksums, restores the saved n8n volume into a fresh Docker volume, writes the restored <code>.env</code> and
+Compose file, registers the instance in <code>state.db</code>, starts n8n, and waits for the web UI.</p>
+<p>Restore does not recreate the original machine's <code>recovery.wrapped</code> file. The next <code>lon backup</code> for the
+restored instance creates fresh local recovery material and prints a new recovery code once.</p>
+<p>By default, <code>restore</code> refuses to overwrite an existing instance. Use <code>--replace</code> only when you intend to
+replace that instance; the current implementation first attempts a pre-restore encrypted backup with the
+same secret before it stops and replaces the existing instance.</p>
+<h3 id="lon-recovery-show"><code>lon recovery show</code><a class="headerlink" href="#lon-recovery-show" title="Permanent link">&para;</a></h3>
+<p>Show the active backup recovery code after authorizing with the backup passphrase.</p>
+<p>Options:</p>
+<ul>
+<li><code>--instance</code>, <code>-i</code>: instance name. Default: <code>default</code>.</li>
+</ul>
+<p>Safe preview:</p>
+<p>```bash test
+uv run lon --dry-run recovery show
+<div class="highlight"><pre><span></span><code>`recovery show` reads the local `recovery.wrapped` file for the instance, unlocks it with the backup
+passphrase, and prints the recovery code. Use it only when you intentionally need to store or verify the
+code; normal backups reuse the wrapped recovery material without printing the code again.
+
+### `lon recovery rotate`
+
+Create a new recovery code for future backups after authorizing with the backup passphrase.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run recovery rotate
+</code></pre></div></p>
+<p><code>recovery rotate</code> replaces the local <code>recovery.wrapped</code> material and prints the new recovery code once.
+Existing bundle files are not rekeyed; they still open with the recovery code that was active when they
+were created. Run a fresh backup after rotating if you want a bundle tied to the new recovery code.</p>
+<h3 id="lon-passphrase-change"><code>lon passphrase change</code><a class="headerlink" href="#lon-passphrase-change" title="Permanent link">&para;</a></h3>
+<p>Change the backup passphrase used to unlock local recovery material for future backups.</p>
+<p>Options:</p>
+<ul>
+<li><code>--instance</code>, <code>-i</code>: instance name. Default: <code>default</code>.</li>
+</ul>
+<p>Safe preview:</p>
+<p>```bash test
+uv run lon --dry-run passphrase change
+<div class="highlight"><pre><span></span><code>`passphrase change` unlocks the local `recovery.wrapped` file with the current backup passphrase and
+rewrites it with the new backup passphrase. Existing bundle files are not rekeyed; each bundle still opens
+with the passphrase or recovery code that was active when that bundle was created.
+
+### `lon passphrase reset`
+
+Reset backup passphrase and recovery material for a running, reachable local instance.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run passphrase reset
+</code></pre></div></p>
+<p><code>passphrase reset</code> is the escape hatch for a live instance when both the old backup passphrase and recovery
+code are lost. It requires the n8n container to be running and the web UI to be reachable, then writes fresh
+local <code>recovery.wrapped</code> material and prints a new recovery code once. Existing bundle files are not rekeyed
+and remain openable only with the passphrase or recovery code that was active when they were created.</p>
 <h2 id="inspection">Inspection<a class="headerlink" href="#inspection" title="Permanent link">&para;</a></h2>
 <h3 id="lon-status"><code>lon status</code><a class="headerlink" href="#lon-status" title="Permanent link">&para;</a></h3>
 <p>Show URL, container state, web UI reachability, Docker volume, and Compose file path for one instance.</p>
