@@ -11,7 +11,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from local_n8n.core.backup import backup_instance, restore_instance, reveal_recovery_code
+from local_n8n.core.backup import (
+    backup_instance,
+    restore_instance,
+    reveal_recovery_code,
+    rotate_recovery_code,
+)
 from local_n8n.core.config import build_instance_config
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, plan_dev_wipe, wipe_dev
 from local_n8n.core.diagnostics import debug, set_verbose
@@ -228,6 +233,22 @@ def _recovery_show_dry_run_payload(*, instance: str) -> dict[str, Any]:
     }
 
 
+def _recovery_rotate_dry_run_payload(*, instance: str) -> dict[str, Any]:
+    config = build_instance_config(instance)
+    return {
+        "ok": True,
+        "command": "recovery rotate",
+        "dry_run": True,
+        "instance": instance,
+        "would": {
+            "prompt_passphrase": True,
+            "unlock_existing_recovery_material": _path(config.instance_dir / "recovery.wrapped"),
+            "write_new_recovery_material": _path(config.instance_dir / "recovery.wrapped"),
+            "print_new_recovery_code": True,
+        },
+    }
+
+
 def _emit_dry_run(payload: dict[str, Any]) -> None:
     if options.json_output:
         _emit_json(payload)
@@ -296,6 +317,26 @@ def _emit_recovery_show_dry_run(payload: dict[str, Any]) -> None:
     console.print("[dim]would prompt for backup passphrase[/dim]")
     console.print(f"[dim]would unlock: {payload['would']['unlock_recovery_material']}[/dim]")
     console.print("[dim]would print the recovery code[/dim]")
+
+
+def _emit_recovery_rotate_dry_run(payload: dict[str, Any]) -> None:
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: recovery rotate[/dim]")
+    console.print(f"[dim]instance: {payload['instance']}[/dim]")
+    console.print("[dim]would prompt for backup passphrase[/dim]")
+    console.print(
+        "[dim]would unlock existing recovery material: "
+        f"{payload['would']['unlock_existing_recovery_material']}[/dim]"
+    )
+    console.print(
+        f"[dim]would write new recovery material: "
+        f"{payload['would']['write_new_recovery_material']}[/dim]"
+    )
+    console.print("[dim]would print the new recovery code[/dim]")
 
 
 def _init_payload(
@@ -521,6 +562,36 @@ def recovery_show(
             "command": "recovery show",
             "instance": instance,
             "recovery_code_shown": True,
+        }
+    )
+
+
+@recovery_app.command("rotate")
+def recovery_rotate(
+    instance: Annotated[str, typer.Option("--instance", "-i", help="Instance name.")] = "default",
+) -> None:
+    """Rotate the active backup recovery code after passphrase authorization."""
+    if options.dry_run:
+        _emit_recovery_rotate_dry_run(_recovery_rotate_dry_run_payload(instance=instance))
+        return
+
+    try:
+        passphrase = _prompt_existing_backup_passphrase()
+        recovery_code = rotate_recovery_code(instance, passphrase=passphrase)
+    except LonError as error:
+        _handle_error(error)
+
+    console.print("[bold yellow]New recovery code created. Store it somewhere safe.[/bold yellow]")
+    console.print(f"[bold yellow]{recovery_code}[/bold yellow]")
+    console.print(
+        "[dim]Old bundles still require the recovery code active when they were created.[/dim]"
+    )
+    _maybe_emit_json(
+        {
+            "ok": True,
+            "command": "recovery rotate",
+            "instance": instance,
+            "recovery_code_created": True,
         }
     )
 

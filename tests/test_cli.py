@@ -438,6 +438,39 @@ def test_cli_recovery_show_success(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert "recovery-code" in result.stderr
 
 
+def test_cli_recovery_rotate_dry_run_outputs_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--dry-run", "recovery", "rotate", "--instance", "default"])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would unlock existing recovery material" in result.stderr
+    assert "would print the new recovery code" in result.stderr
+
+
+def test_cli_recovery_rotate_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_rotate_recovery_code(instance_name: str, *, passphrase: str) -> str:
+        assert instance_name == "default"
+        assert passphrase == "backup-passphrase"
+        return "new-recovery-code"
+
+    monkeypatch.setattr(
+        "local_n8n.app._prompt_existing_backup_passphrase", lambda: "backup-passphrase"
+    )
+    monkeypatch.setattr("local_n8n.app.rotate_recovery_code", fake_rotate_recovery_code)
+
+    result = runner.invoke(app, ["recovery", "rotate"])
+
+    assert result.exit_code == 0
+    assert "New recovery code created" in result.stderr
+    assert "new-recovery-code" in result.stderr
+
+
 def test_cli_up_prompts_for_legacy_image_update_with_yes_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

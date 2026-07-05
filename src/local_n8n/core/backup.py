@@ -306,6 +306,31 @@ def restore_instance(
 
 
 def reveal_recovery_code(instance_name: str, *, passphrase: str) -> str:
+    recovery_path = _recovery_material_path(instance_name)
+    return _open_recovery_material(recovery_path, passphrase=passphrase)
+
+
+def rotate_recovery_code(
+    instance_name: str,
+    *,
+    passphrase: str,
+    recovery_code_factory: RecoveryCodeFactory | None = None,
+) -> str:
+    recovery_path = _recovery_material_path(instance_name)
+    _open_recovery_material(recovery_path, passphrase=passphrase)
+    recovery_code = (recovery_code_factory or _generate_recovery_code)()
+    recovery_path.write_bytes(
+        seal_bundle(
+            recovery_code.encode("utf-8"),
+            passphrase=passphrase,
+            recovery_code=recovery_code,
+        )
+    )
+    recovery_path.chmod(0o600)
+    return recovery_code
+
+
+def _recovery_material_path(instance_name: str) -> Path:
     with StateStore.open_default() as state:
         record = state.get_instance(instance_name)
         if record is None:
@@ -326,7 +351,10 @@ def reveal_recovery_code(instance_name: str, *, passphrase: str) -> str:
             f"Recovery material for instance {instance_name!r} does not exist.",
             hint="Run `lon backup` first to create and display a recovery code.",
         )
+    return recovery_path
 
+
+def _open_recovery_material(recovery_path: Path, *, passphrase: str) -> str:
     try:
         opened = open_bundle(
             recovery_path.read_bytes(),

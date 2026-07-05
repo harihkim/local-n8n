@@ -14,8 +14,9 @@ from local_n8n.core.backup import (
     backup_instance,
     restore_instance,
     reveal_recovery_code,
+    rotate_recovery_code,
 )
-from local_n8n.core.crypto import open_bundle, seal_bundle
+from local_n8n.core.crypto import BundleAuthenticationError, open_bundle, seal_bundle
 from local_n8n.core.errors import CommandFailedError
 from local_n8n.core.runner import CommandResult
 from local_n8n.core.state import StateStore, new_instance_record
@@ -207,6 +208,52 @@ def test_reveal_recovery_code_requires_existing_recovery_material(
         reveal_recovery_code("default", passphrase="backup-passphrase")
 
     assert "does not exist" in str(exc_info.value)
+
+
+def test_rotate_recovery_code_rewraps_future_recovery_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if args[:2] == ["docker", "compose"] and "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout="", stderr="")
+        if args[:2] == ["docker", "run"]:
+            _write_volume_tar(cwd / "volume.tar")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+    backup_instance(
+        "default",
+        passphrase="backup-passphrase",
+        output_path=tmp_path / "first.n8nbundle",
+        recovery_code_factory=lambda: "old-recovery-code",
+    )
+
+    rotated = rotate_recovery_code(
+        "default",
+        passphrase="backup-passphrase",
+        recovery_code_factory=lambda: "new-recovery-code",
+    )
+
+    assert rotated == "new-recovery-code"
+    assert reveal_recovery_code("default", passphrase="backup-passphrase") == "new-recovery-code"
+
+    second = backup_instance(
+        "default",
+        passphrase="backup-passphrase",
+        output_path=tmp_path / "second.n8nbundle",
+        recovery_code_factory=lambda: pytest.fail("rotated recovery code should be reused"),
+    )
+
+    assert second.recovery_code is None
+    opened = open_bundle(second.bundle_path.read_bytes(), secret="new-recovery-code")
+    assert _manifest_from_payload(opened.payload)["instance"] == "default"
+    with pytest.raises(BundleAuthenticationError):
+        open_bundle(second.bundle_path.read_bytes(), secret="old-recovery-code")
 
 
 def test_restore_instance_restores_bundle_to_new_instance(

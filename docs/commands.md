@@ -193,6 +193,24 @@ uv run lon --dry-run recovery show
 passphrase, and prints the recovery code. Use it only when you intentionally need to store or verify the
 code; normal backups reuse the wrapped recovery material without printing the code again.
 
+### `lon recovery rotate`
+
+Create a new recovery code for future backups after authorizing with the backup passphrase.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run recovery rotate
+```
+
+`recovery rotate` replaces the local `recovery.wrapped` material and prints the new recovery code once.
+Existing bundle files are not rekeyed; they still open with the recovery code that was active when they
+were created. Run a fresh backup after rotating if you want a bundle tied to the new recovery code.
+
 ## Inspection
 
 ### `lon status`

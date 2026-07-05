@@ -25,6 +25,7 @@ COMMAND_OPTIONS = {
     "backup": {"--instance", "-i", "--output", "-o", "--yes", "-y"},
     "restore": {"--replace", "--port", "-p"},
     "recovery show": {"--instance", "-i"},
+    "recovery rotate": {"--instance", "-i"},
     "status": {"--instance", "-i"},
     "logs": {"--instance", "-i", "--follow", "-f", "--tail"},
     "open": {"--instance", "-i"},
