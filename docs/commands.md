@@ -149,6 +149,29 @@ bundle, records backup metadata in `state.db`, and then starts n8n again if it w
 The first backup creates local recovery material and prints a recovery code once. Store that code somewhere
 safe; future backups reuse the local wrapped recovery material.
 
+### `lon restore`
+
+Restore an encrypted local `.n8nbundle`.
+
+Options:
+
+- `--replace`: replace an existing instance after first creating a pre-restore safety backup.
+- `--port`, `-p`: override the restored n8n port.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run restore /tmp/example.n8nbundle
+```
+
+`restore` decrypts the bundle with either the backup passphrase or recovery code, verifies the manifest and
+payload checksums, restores the saved n8n volume into a fresh Docker volume, writes the restored `.env` and
+Compose file, registers the instance in `state.db`, starts n8n, and waits for the web UI.
+
+By default, `restore` refuses to overwrite an existing instance. Use `--replace` only when you intend to
+replace that instance; the current implementation first attempts a pre-restore encrypted backup with the
+same secret before it stops and replaces the existing instance.
+
 ## Inspection
 
 ### `lon status`

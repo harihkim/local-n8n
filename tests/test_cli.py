@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from local_n8n.app import app
 from local_n8n.compose.template import DEFAULT_IMAGE_REF, LEGACY_DEFAULT_IMAGE_REFS
-from local_n8n.core.backup import BackupResult
+from local_n8n.core.backup import BackupResult, RestoreResult
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, DevWipeTarget
 from local_n8n.core.doctor import DoctorCheck
 from local_n8n.core.init import InitResult, plan_init
@@ -352,6 +352,57 @@ def test_cli_backup_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert "Encrypted backup created" in result.stderr
     assert "Recovery code created" in result.stderr
     assert "recovery-code" in result.stderr
+
+
+def test_cli_restore_dry_run_outputs_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--dry-run", "restore", str(tmp_path / "backup.n8nbundle")])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would decrypt bundle and verify manifest" in result.stderr
+    assert "would restore Docker volume" in result.stderr
+
+
+def test_cli_restore_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_restore_instance(
+        bundle_path: Path,
+        *,
+        secret: str,
+        replace: bool,
+        port: int | None,
+        progress: Callable[[str], None],
+    ) -> RestoreResult:
+        assert bundle_path == tmp_path / "backup.n8nbundle"
+        assert secret == "restore-secret"
+        assert replace
+        assert port == 5691
+        progress("fake restore progress")
+        return RestoreResult(
+            instance="default",
+            url="http://localhost:5691",
+            compose_path=tmp_path / "instances/default/docker-compose.yml",
+            env_path=tmp_path / "instances/default/.env",
+            volume_name="n8n_default_data.g1",
+            replaced=True,
+            pre_restore_backup=tmp_path / "pre-restore.n8nbundle",
+        )
+
+    monkeypatch.setattr("local_n8n.app._prompt_restore_secret", lambda: "restore-secret")
+    monkeypatch.setattr("local_n8n.app.restore_instance", fake_restore_instance)
+
+    result = runner.invoke(
+        app,
+        ["restore", str(tmp_path / "backup.n8nbundle"), "--replace", "--port", "5691"],
+    )
+
+    assert result.exit_code == 0
+    assert "fake restore progress" in result.stderr
+    assert "Restored n8n" in result.stderr
+    assert "pre-restore backup" in result.stderr
 
 
 def test_cli_up_prompts_for_legacy_image_update_with_yes_default(

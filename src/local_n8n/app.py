@@ -11,7 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from local_n8n.core.backup import backup_instance
+from local_n8n.core.backup import backup_instance, restore_instance
 from local_n8n.core.config import build_instance_config
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, plan_dev_wipe, wipe_dev
 from local_n8n.core.diagnostics import debug, set_verbose
@@ -180,6 +180,33 @@ def _backup_dry_run_payload(
     }
 
 
+def _restore_dry_run_payload(
+    *,
+    bundle: Path,
+    replace: bool,
+    port: int | None,
+) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "command": "restore",
+        "dry_run": True,
+        "bundle": _path(bundle),
+        "would": {
+            "prompt_secret": True,
+            "decrypt_bundle": True,
+            "verify_manifest": True,
+            "refuse_existing_without_replace": not replace,
+            "create_pre_restore_backup_when_replacing": replace,
+            "restore_volume": True,
+            "write_instance_files": True,
+            "register_state": True,
+            "start": True,
+            "wait_for_web_ui": True,
+            "port_override": port,
+        },
+    }
+
+
 def _emit_dry_run(payload: dict[str, Any]) -> None:
     if options.json_output:
         _emit_json(payload)
@@ -214,6 +241,27 @@ def _emit_backup_dry_run(payload: dict[str, Any]) -> None:
         f"{payload['would']['write_recovery_material_if_missing']}[/dim]"
     )
     console.print("[dim]would restart n8n if it was running before backup[/dim]")
+
+
+def _emit_restore_dry_run(payload: dict[str, Any]) -> None:
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: restore[/dim]")
+    console.print(f"[dim]bundle: {payload['bundle']}[/dim]")
+    console.print("[dim]would prompt for passphrase or recovery code[/dim]")
+    console.print("[dim]would decrypt bundle and verify manifest[/dim]")
+    if payload["would"]["create_pre_restore_backup_when_replacing"]:
+        console.print("[dim]would create a pre-restore safety backup before replacing[/dim]")
+    else:
+        console.print("[dim]would refuse to overwrite an existing instance[/dim]")
+    if payload["would"]["port_override"] is not None:
+        console.print(
+            f"[dim]would override restored port: {payload['would']['port_override']}[/dim]"
+        )
+    console.print("[dim]would restore Docker volume, write instance files, and start n8n[/dim]")
 
 
 def _init_payload(
@@ -399,6 +447,13 @@ def _prompt_backup_passphrase() -> str:
     if first != second:
         raise UsageError("Backup passphrases did not match.")
     return first
+
+
+def _prompt_restore_secret() -> str:
+    secret = getpass.getpass("Backup passphrase or recovery code: ", stream=sys.stderr)
+    if not secret:
+        raise UsageError("Backup passphrase or recovery code cannot be empty.")
+    return secret
 
 
 @dev_app.command("wipe")
@@ -679,6 +734,58 @@ def backup(
             "size": result.size,
             "recovery_code_created": result.recovery_code is not None,
             "restarted": result.restarted,
+        }
+    )
+
+
+@app.command()
+def restore(
+    bundle: Annotated[Path, typer.Argument(help="Backup bundle to restore.")],
+    replace: Annotated[
+        bool,
+        typer.Option("--replace", help="Replace an existing instance after a safety backup."),
+    ] = False,
+    port: Annotated[
+        int | None,
+        typer.Option("--port", "-p", help="Override the restored n8n port."),
+    ] = None,
+) -> None:
+    """Restore an encrypted local backup bundle."""
+    if options.dry_run:
+        _emit_restore_dry_run(_restore_dry_run_payload(bundle=bundle, replace=replace, port=port))
+        return
+
+    try:
+        secret = _prompt_restore_secret()
+        result = restore_instance(
+            bundle,
+            secret=secret,
+            replace=replace,
+            port=port,
+            progress=_progress,
+        )
+    except LonError as error:
+        _handle_error(error)
+
+    console.print(f"[green]Restored n8n:[/green] {result.url}")
+    console.print(f"[dim]instance: {result.instance}[/dim]")
+    console.print(f"[dim]volume: {result.volume_name}[/dim]")
+    console.print(f"[dim]compose: {result.compose_path}[/dim]")
+    if result.pre_restore_backup is not None:
+        console.print(f"[dim]pre-restore backup: {result.pre_restore_backup}[/dim]")
+    _maybe_emit_json(
+        {
+            "ok": True,
+            "command": "restore",
+            "instance": result.instance,
+            "url": result.url,
+            "compose": _path(result.compose_path),
+            "env": _path(result.env_path),
+            "volume": result.volume_name,
+            "replaced": result.replaced,
+            "pre_restore_backup": _path(result.pre_restore_backup)
+            if result.pre_restore_backup is not None
+            else None,
         }
     )
 

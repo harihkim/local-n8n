@@ -52,6 +52,9 @@ backup/restore.
 - Started Phase 3b with `lon backup`: downtime confirmation, passphrase prompt, stop-if-running volume
   capture, encrypted `.n8nbundle` write, recovery material creation/reuse, backup metadata recording, and
   restart-in-`finally` behavior.
+- Started Phase 3c with `lon restore`: decrypt/verify bundle payload, refuse existing instances unless
+  `--replace`, restore to a fresh generated Docker volume, rehydrate `.env`/Compose, register state, start
+  n8n, and wait for readiness.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -369,8 +372,8 @@ Added the first backup command path without restore yet:
 - `state.db` now includes a `backups` table and records bundle path, checksum, size, timestamp, and version
   metadata after successful writes
 
-Restore is still pending for Phase 3c. The current bundle payload format is intentionally simple so restore
-can consume it directly in the next slice.
+Restore now consumes this payload format directly. The full real Docker backup→wipe→restore portability
+smoke test is still pending.
 
 Manual smoke test:
 
@@ -380,6 +383,41 @@ Manual smoke test:
 - opened the second bundle with the recovery code and confirmed the `N8NB` magic/header path works
 - confirmed n8n restarted and `lon status` reported `running` / `reachable`
 - cleaned up the smoke-test container, volume, local state, and temporary bundles
+
+### Phase 3c restore path
+
+Added the first restore command path:
+
+- `lon restore <bundle>` prompts for either the backup passphrase or recovery code
+- the bundle payload is decrypted through `core.crypto.open_bundle`
+- `manifest.json` schema and per-file `sha256`/size metadata are verified before restore
+- existing instances are refused by default
+- `--replace` first attempts a pre-restore encrypted safety backup using the provided secret, then runs
+  Compose `down` for the existing instance
+- restore creates a fresh generation-style Docker volume name such as `n8n_default_data.g<timestamp>`
+- `.env` is restored with `0600` permissions; `--port` can override `N8N_PORT`
+- Compose is rendered for the restored image and fresh volume, then `docker compose up -d` starts n8n and
+  readiness polling waits for the web UI
+
+Manual Docker smoke test:
+
+- created isolated instance `phase3c-smoke` under
+  `LOCAL_N8N_HOME=/tmp/local-n8n-phase3c-smoke-codex`
+- started n8n on port `5687`
+- wrote marker file `/home/node/.n8n/codex-smoke/marker.txt` inside the Docker volume
+- created encrypted backup `/tmp/local-n8n-phase3c-smoke-codex/phase3c-smoke.n8nbundle`
+- verified the first backup created a recovery code
+- ran `lon dev wipe --yes` to remove the original container, local state, and volume
+- restored from the bundle with the backup passphrase
+- verified `lon status --instance phase3c-smoke` reported `running` / `reachable`
+- verified the marker file restored with contents `phase3c-smoke-marker`
+- cleaned up the restored container, generated volume, local state, and instance files
+
+Observed restore polish item: Docker Compose warns that the generated restore volume already exists but was
+not created by Compose. Restore succeeds, but this may be worth quieting or documenting before release.
+
+Remaining Phase 3c hardening: tighten replace rollback behavior and decide whether recovery material should
+be regenerated immediately after restore or deferred until the next backup.
 
 ## Verification
 
@@ -404,7 +442,7 @@ Manual smoke test:
 
 ## Next phase
 
-Continue Phase 3b hardening/manual testing, then move to Phase 3c restore: decrypt bundle, verify manifest,
-restore into a fresh volume, rehydrate `.env`/compose, guard existing instances with `--replace`, and start
-n8n from the restored state. Follow-up candidates after the Phase 3 core loop: persistent diagnostic file
-logging, `lon update`, and user config for `default-image-ref`.
+Continue Phase 3c hardening and manual Docker testing: perform backup→wipe→restore, verify restored n8n
+data, tighten replace rollback behavior, then prepare the MVP portability checkpoint. Follow-up candidates
+after the Phase 3 core loop: persistent diagnostic file logging, `lon update`, and user config for
+`default-image-ref`.

@@ -23,6 +23,7 @@ COMMAND_OPTIONS = {
     "start": {"--instance", "-i"},
     "restart": {"--instance", "-i"},
     "backup": {"--instance", "-i", "--output", "-o", "--yes", "-y"},
+    "restore": {"--replace", "--port", "-p"},
     "status": {"--instance", "-i"},
     "logs": {"--instance", "-i", "--follow", "-f", "--tail"},
     "open": {"--instance", "-i"},

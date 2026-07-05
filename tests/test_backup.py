@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tarfile
 from io import BytesIO
@@ -8,8 +9,8 @@ from typing import Any, cast
 
 import pytest
 
-from local_n8n.core.backup import backup_instance
-from local_n8n.core.crypto import open_bundle
+from local_n8n.core.backup import backup_instance, restore_instance
+from local_n8n.core.crypto import open_bundle, seal_bundle
 from local_n8n.core.errors import CommandFailedError
 from local_n8n.core.runner import CommandResult
 from local_n8n.core.state import StateStore, new_instance_record
@@ -164,6 +165,54 @@ def test_backup_instance_reuses_existing_recovery_material(
     assert _manifest_from_payload(opened.payload)["instance"] == "default"
 
 
+def test_restore_instance_restores_bundle_to_new_instance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    bundle_path = _write_restore_bundle(tmp_path, instance="restored")
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        calls.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.wait_for_web_ui_ready", lambda url: True)
+
+    result = restore_instance(bundle_path, secret="restore-secret", port=5691)
+
+    assert result.instance == "restored"
+    assert result.url == "http://localhost:5691"
+    assert result.volume_name.startswith("n8n_restored_data.g")
+    assert (tmp_path / "instances" / "restored" / ".env").read_text(encoding="utf-8").splitlines()[
+        1
+    ] == "N8N_PORT=5691"
+    assert any(command[:3] == ["docker", "volume", "create"] for command in calls)
+    assert any(command[:2] == ["docker", "run"] for command in calls)
+    assert any(command[-2:] == ["up", "-d"] for command in calls)
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("restored")
+    assert record is not None
+    assert record.port == 5691
+    assert record.data_volume == result.volume_name
+
+
+def test_restore_instance_refuses_existing_instance_without_replace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+    bundle_path = _write_restore_bundle(tmp_path, instance="default")
+
+    with pytest.raises(Exception) as exc_info:
+        restore_instance(bundle_path, secret="restore-secret")
+
+    assert "already exists" in str(exc_info.value)
+
+
 def _seed_instance(tmp_path: Path) -> None:
     instance_dir = tmp_path / "instances" / "default"
     instance_dir.mkdir(parents=True)
@@ -204,3 +253,58 @@ def _manifest_files(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     files = manifest["files"]
     assert isinstance(files, list)
     return cast(list[dict[str, Any]], files)
+
+
+def _write_restore_bundle(tmp_path: Path, *, instance: str) -> Path:
+    work_dir = tmp_path / "bundle-build"
+    work_dir.mkdir(exist_ok=True)
+    env_path = work_dir / ".env"
+    compose_path = work_dir / "docker-compose.yml"
+    volume_tar = work_dir / "volume.tar"
+    env_path.write_text("N8N_ENCRYPTION_KEY=restored-key\nN8N_PORT=5678\n", encoding="utf-8")
+    compose_path.write_text("services:\n  n8n: {}\n", encoding="utf-8")
+    _write_volume_tar(volume_tar)
+    manifest_path = work_dir / "manifest.json"
+    manifest = {
+        "bundle_schema": 1,
+        "compose_schema": 1,
+        "created_at": "2026-07-01T00:00:00Z",
+        "db_type": "sqlite",
+        "files": [
+            _file_entry(".env", env_path),
+            _file_entry("docker-compose.yml", compose_path),
+            _file_entry("volume.tar", volume_tar),
+        ],
+        "image": "docker.n8n.io/n8nio/n8n",
+        "instance": instance,
+        "lon_version": "0.1.0a2",
+        "n8n_version": None,
+        "platform_created_on": "linux-wsl",
+        "restore_policy": "same-version by default; --upgrade allows forward migration",
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, separators=(",", ":"), sort_keys=True), encoding="utf-8"
+    )
+    payload_path = work_dir / "payload.tar"
+    with tarfile.open(payload_path, "w") as archive:
+        archive.add(manifest_path, arcname="manifest.json")
+        archive.add(volume_tar, arcname="volume.tar")
+        archive.add(compose_path, arcname="docker-compose.yml")
+        archive.add(env_path, arcname=".env")
+    bundle_path = tmp_path / f"{instance}.n8nbundle"
+    bundle_path.write_bytes(
+        seal_bundle(
+            payload_path.read_bytes(),
+            passphrase="restore-secret",
+            recovery_code="restore-recovery",
+        )
+    )
+    return bundle_path
+
+
+def _file_entry(name: str, path: Path) -> dict[str, object]:
+    return {
+        "path": name,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "size": path.stat().st_size,
+    }
