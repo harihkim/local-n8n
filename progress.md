@@ -466,10 +466,26 @@ Started the Phase 3 checkpoint review:
 
 Remaining release-readiness gaps:
 
-- run one final manual release-candidate smoke pass from `docs/manual-testing.md`
 - decide whether to quiet or document Docker Compose's warning about pre-created restore generation volumes
-- rename the stale local branch `phase-3a-crypto-core` before opening a PR or release branch
 - decide release version/tag strategy for the Phase 3 prerelease after review
+
+Manual release-candidate smoke pass:
+
+- baseline help and dry-run commands passed
+- `lon doctor --port 5689` passed on WSL with Docker Desktop integration
+- initial default-instance smoke attempt exposed a manual-testing hazard: `LOCAL_N8N_HOME` isolates files and
+  state, but Docker volume names are global and `default` maps to `n8n_default_data`
+- reran lifecycle smoke with unique instance `rc-smoke-codex` on port `5690`
+- verified `init`, `status`, `list`, `stop`, `start`, `down`, and the expected `restart` failure after
+  `down`
+- wrote a marker file into the Docker volume, created an encrypted backup, and verified first recovery-code
+  creation
+- verified `recovery show`, `recovery rotate`, `passphrase change`, and live-instance `passphrase reset`
+- wiped the original volume, restored from the original bundle with the original passphrase, and verified
+  `status` reported `running` / `reachable`
+- verified restored marker contents `rc-smoke-marker`
+- verified restored instances do not immediately recreate `recovery.wrapped`
+- cleaned up the unique smoke-test container, networks, generated volumes, local instance files, and state
 
 ## Verification
 

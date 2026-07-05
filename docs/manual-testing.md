@@ -2,6 +2,10 @@
 
 Use this checklist when validating a release candidate locally.
 
+When using a temporary `LOCAL_N8N_HOME`, also use a unique `--instance` name for Docker-backed tests.
+`LOCAL_N8N_HOME` isolates files and state, but Docker project and volume names are derived from the
+instance name and are global on the Docker daemon.
+
 ## Baseline
 
 ```bash
@@ -16,12 +20,12 @@ Expected:
 - `doctor` reports platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and port state
 - `init` dry-run explains planned writes/start/open behavior without side effects
 
-## Default Instance
+## Basic Instance
 
 ```bash
-uv run lon init --no-open
-uv run lon status
-uv run lon open
+export LOCAL_N8N_HOME=/tmp/local-n8n-manual-default
+uv run lon init --instance manual-default --port 5689 --no-open
+uv run lon status --instance manual-default
 ```
 
 Expected:
@@ -34,7 +38,7 @@ Expected:
 Clean up:
 
 ```bash
-uv run lon down
+uv run lon dev wipe --yes
 ```
 
 ## Named Instance
