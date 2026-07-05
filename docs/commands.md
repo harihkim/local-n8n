@@ -211,6 +211,24 @@ uv run lon --dry-run recovery rotate
 Existing bundle files are not rekeyed; they still open with the recovery code that was active when they
 were created. Run a fresh backup after rotating if you want a bundle tied to the new recovery code.
 
+### `lon passphrase change`
+
+Change the backup passphrase used to unlock local recovery material for future backups.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run passphrase change
+```
+
+`passphrase change` unlocks the local `recovery.wrapped` file with the current backup passphrase and
+rewrites it with the new backup passphrase. Existing bundle files are not rekeyed; each bundle still opens
+with the passphrase or recovery code that was active when that bundle was created.
+
 ## Inspection
 
 ### `lon status`

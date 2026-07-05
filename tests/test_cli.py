@@ -471,6 +471,46 @@ def test_cli_recovery_rotate_success(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert "new-recovery-code" in result.stderr
 
 
+def test_cli_passphrase_change_dry_run_outputs_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--dry-run", "passphrase", "change", "--instance", "default"])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would prompt for current backup passphrase" in result.stderr
+    assert "would prompt for new backup passphrase" in result.stderr
+    assert "would not rekey existing backup bundles" in result.stderr
+
+
+def test_cli_passphrase_change_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_change_backup_passphrase(
+        instance_name: str,
+        *,
+        current_passphrase: str,
+        new_passphrase: str,
+    ) -> None:
+        assert instance_name == "default"
+        assert current_passphrase == "old-passphrase"
+        assert new_passphrase == "new-passphrase"
+
+    monkeypatch.setattr(
+        "local_n8n.app._prompt_existing_backup_passphrase", lambda: "old-passphrase"
+    )
+    monkeypatch.setattr("local_n8n.app._prompt_new_backup_passphrase", lambda: "new-passphrase")
+    monkeypatch.setattr("local_n8n.app.change_backup_passphrase", fake_change_backup_passphrase)
+
+    result = runner.invoke(app, ["passphrase", "change"])
+
+    assert result.exit_code == 0
+    assert "Backup passphrase changed." in result.stderr
+    assert "Existing backup bundles were not rekeyed." in result.stderr
+
+
 def test_cli_up_prompts_for_legacy_image_update_with_yes_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

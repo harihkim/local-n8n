@@ -330,6 +330,24 @@ def rotate_recovery_code(
     return recovery_code
 
 
+def change_backup_passphrase(
+    instance_name: str,
+    *,
+    current_passphrase: str,
+    new_passphrase: str,
+) -> None:
+    recovery_path = _recovery_material_path(instance_name)
+    recovery_code = _open_recovery_material(recovery_path, passphrase=current_passphrase)
+    recovery_path.write_bytes(
+        seal_bundle(
+            recovery_code.encode("utf-8"),
+            passphrase=new_passphrase,
+            recovery_code=recovery_code,
+        )
+    )
+    recovery_path.chmod(0o600)
+
+
 def _recovery_material_path(instance_name: str) -> Path:
     with StateStore.open_default() as state:
         record = state.get_instance(instance_name)

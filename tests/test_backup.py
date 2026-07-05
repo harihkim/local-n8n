@@ -12,6 +12,7 @@ import pytest
 from local_n8n.core.backup import (
     BackupResult,
     backup_instance,
+    change_backup_passphrase,
     restore_instance,
     reveal_recovery_code,
     rotate_recovery_code,
@@ -254,6 +255,62 @@ def test_rotate_recovery_code_rewraps_future_recovery_material(
     assert _manifest_from_payload(opened.payload)["instance"] == "default"
     with pytest.raises(BundleAuthenticationError):
         open_bundle(second.bundle_path.read_bytes(), secret="old-recovery-code")
+
+
+def test_change_backup_passphrase_rewraps_recovery_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if args[:2] == ["docker", "compose"] and "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout="", stderr="")
+        if args[:2] == ["docker", "run"]:
+            _write_volume_tar(cwd / "volume.tar")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+    first = backup_instance(
+        "default",
+        passphrase="old-passphrase",
+        output_path=tmp_path / "first.n8nbundle",
+        recovery_code_factory=lambda: "recovery-code",
+    )
+
+    change_backup_passphrase(
+        "default",
+        current_passphrase="old-passphrase",
+        new_passphrase="new-passphrase",
+    )
+
+    assert reveal_recovery_code("default", passphrase="new-passphrase") == "recovery-code"
+    with pytest.raises(Exception) as exc_info:
+        reveal_recovery_code("default", passphrase="old-passphrase")
+    assert "Could not unlock recovery material" in str(exc_info.value)
+
+    second = backup_instance(
+        "default",
+        passphrase="new-passphrase",
+        output_path=tmp_path / "second.n8nbundle",
+        recovery_code_factory=lambda: pytest.fail("existing recovery code should be reused"),
+    )
+
+    assert second.recovery_code is None
+    assert (
+        _manifest_from_payload(
+            open_bundle(first.bundle_path.read_bytes(), secret="recovery-code").payload
+        )["instance"]
+        == "default"
+    )
+    assert (
+        _manifest_from_payload(
+            open_bundle(second.bundle_path.read_bytes(), secret="recovery-code").payload
+        )["instance"]
+        == "default"
+    )
 
 
 def test_restore_instance_restores_bundle_to_new_instance(

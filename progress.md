@@ -55,8 +55,9 @@ backup/restore.
 - Started Phase 3c with `lon restore`: decrypt/verify bundle payload, refuse existing instances unless
   `--replace`, restore to a fresh generated Docker volume, rehydrate `.env`/Compose, register state, start
   n8n, and wait for readiness.
-- Started Phase 3d admin polish with `lon recovery show` and `lon recovery rotate`: passphrase-authorized
-  recovery-code display and rotation from local `recovery.wrapped` material.
+- Started Phase 3d admin polish with `lon recovery show`, `lon recovery rotate`, and
+  `lon passphrase change`: passphrase-authorized recovery-code display/rotation and recovery-material
+  rewrapping from local `recovery.wrapped` material.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -440,10 +441,14 @@ Added the first Phase 3d admin commands:
 - it writes fresh local `recovery.wrapped` material and prints the new recovery code once
 - future backups reuse the rotated recovery code, while existing bundles remain tied to the recovery code
   active when they were created
+- `lon passphrase change` prompts for the current backup passphrase, then a new passphrase with confirmation
+- it rewraps the existing recovery code under the new passphrase without changing the recovery code
+- future backups can reuse the same recovery code with the new passphrase; existing bundle files are not
+  rekeyed
 - `--dry-run` previews the prompt/unlock/display steps without reading or printing the secret
-- `--json` reports that the recovery code was shown or created without including the secret in JSON
+- `--json` reports admin outcomes without including passphrases or recovery codes in JSON
 
-Remaining Phase 3d admin commands: `lon passphrase change` and `lon passphrase reset`.
+Remaining Phase 3d admin command: `lon passphrase reset`.
 
 ## Verification
 
@@ -468,6 +473,5 @@ Remaining Phase 3d admin commands: `lon passphrase change` and `lon passphrase r
 
 ## Next phase
 
-Continue Phase 3d admin polish: implement `lon passphrase change` and `lon passphrase reset`. Follow-up
-candidates after the Phase 3 core loop: persistent diagnostic file logging, `lon update`, and user config
-for `default-image-ref`.
+Continue Phase 3d admin polish: implement `lon passphrase reset`. Follow-up candidates after the Phase 3
+core loop: persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.

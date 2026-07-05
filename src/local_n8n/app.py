@@ -13,6 +13,7 @@ from rich.table import Table
 
 from local_n8n.core.backup import (
     backup_instance,
+    change_backup_passphrase,
     restore_instance,
     reveal_recovery_code,
     rotate_recovery_code,
@@ -58,8 +59,14 @@ recovery_app = typer.Typer(
     help="Manage backup recovery material.",
     no_args_is_help=True,
 )
+passphrase_app = typer.Typer(
+    add_completion=False,
+    help="Manage backup passphrase material.",
+    no_args_is_help=True,
+)
 app.add_typer(dev_app, name="dev")
 app.add_typer(recovery_app, name="recovery")
+app.add_typer(passphrase_app, name="passphrase")
 console = Console(stderr=True)
 options = CliOptions()
 
@@ -249,6 +256,23 @@ def _recovery_rotate_dry_run_payload(*, instance: str) -> dict[str, Any]:
     }
 
 
+def _passphrase_change_dry_run_payload(*, instance: str) -> dict[str, Any]:
+    config = build_instance_config(instance)
+    return {
+        "ok": True,
+        "command": "passphrase change",
+        "dry_run": True,
+        "instance": instance,
+        "would": {
+            "prompt_current_passphrase": True,
+            "prompt_new_passphrase": True,
+            "unlock_existing_recovery_material": _path(config.instance_dir / "recovery.wrapped"),
+            "rewrite_recovery_material": _path(config.instance_dir / "recovery.wrapped"),
+            "rekey_existing_bundles": False,
+        },
+    }
+
+
 def _emit_dry_run(payload: dict[str, Any]) -> None:
     if options.json_output:
         _emit_json(payload)
@@ -337,6 +361,27 @@ def _emit_recovery_rotate_dry_run(payload: dict[str, Any]) -> None:
         f"{payload['would']['write_new_recovery_material']}[/dim]"
     )
     console.print("[dim]would print the new recovery code[/dim]")
+
+
+def _emit_passphrase_change_dry_run(payload: dict[str, Any]) -> None:
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: passphrase change[/dim]")
+    console.print(f"[dim]instance: {payload['instance']}[/dim]")
+    console.print("[dim]would prompt for current backup passphrase[/dim]")
+    console.print("[dim]would prompt for new backup passphrase and confirmation[/dim]")
+    console.print(
+        "[dim]would unlock existing recovery material: "
+        f"{payload['would']['unlock_existing_recovery_material']}[/dim]"
+    )
+    console.print(
+        f"[dim]would rewrite recovery material: "
+        f"{payload['would']['rewrite_recovery_material']}[/dim]"
+    )
+    console.print("[dim]would not rekey existing backup bundles[/dim]")
 
 
 def _init_payload(
@@ -531,6 +576,16 @@ def _prompt_existing_backup_passphrase() -> str:
     return passphrase
 
 
+def _prompt_new_backup_passphrase() -> str:
+    first = getpass.getpass("New backup passphrase: ", stream=sys.stderr)
+    second = getpass.getpass("Confirm new backup passphrase: ", stream=sys.stderr)
+    if not first:
+        raise UsageError("New backup passphrase cannot be empty.")
+    if first != second:
+        raise UsageError("New backup passphrases did not match.")
+    return first
+
+
 def _prompt_restore_secret() -> str:
     secret = getpass.getpass("Backup passphrase or recovery code: ", stream=sys.stderr)
     if not secret:
@@ -592,6 +647,39 @@ def recovery_rotate(
             "command": "recovery rotate",
             "instance": instance,
             "recovery_code_created": True,
+        }
+    )
+
+
+@passphrase_app.command("change")
+def passphrase_change(
+    instance: Annotated[str, typer.Option("--instance", "-i", help="Instance name.")] = "default",
+) -> None:
+    """Change the backup passphrase used for future local recovery material."""
+    if options.dry_run:
+        _emit_passphrase_change_dry_run(_passphrase_change_dry_run_payload(instance=instance))
+        return
+
+    try:
+        current_passphrase = _prompt_existing_backup_passphrase()
+        new_passphrase = _prompt_new_backup_passphrase()
+        change_backup_passphrase(
+            instance,
+            current_passphrase=current_passphrase,
+            new_passphrase=new_passphrase,
+        )
+    except LonError as error:
+        _handle_error(error)
+
+    console.print("[green]Backup passphrase changed.[/green]")
+    console.print("[dim]Existing backup bundles were not rekeyed.[/dim]")
+    _maybe_emit_json(
+        {
+            "ok": True,
+            "command": "passphrase change",
+            "instance": instance,
+            "passphrase_changed": True,
+            "existing_bundles_rekeyed": False,
         }
     )
 

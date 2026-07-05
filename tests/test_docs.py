@@ -26,6 +26,7 @@ COMMAND_OPTIONS = {
     "restore": {"--replace", "--port", "-p"},
     "recovery show": {"--instance", "-i"},
     "recovery rotate": {"--instance", "-i"},
+    "passphrase change": {"--instance", "-i"},
     "status": {"--instance", "-i"},
     "logs": {"--instance", "-i", "--follow", "-f", "--tail"},
     "open": {"--instance", "-i"},
