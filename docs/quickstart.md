@@ -77,6 +77,38 @@ lon down
 lon up
 ```
 
+## 6. Create an Encrypted Backup
+
+```bash
+lon backup
+```
+
+`backup` briefly stops n8n for a consistent snapshot, writes an encrypted `.n8nbundle`, and starts n8n again
+if it was running before. The first backup asks for a backup passphrase and prints a recovery code once.
+Store that recovery code somewhere safe.
+
+## 7. Restore a Backup
+
+```bash
+lon restore /path/to/default-2026-07-05T12-00-00Z.n8nbundle
+```
+
+`restore` opens the bundle with either the backup passphrase or recovery code, restores the Docker volume
+into a fresh generation volume, writes the instance files, registers state, starts n8n, and waits for the web
+UI.
+
+By default, restore refuses to overwrite an existing instance. Use `--replace` only when you intentionally
+want to replace that instance after a pre-restore safety backup.
+
+Recovery admin commands are available when needed:
+
+```bash
+lon recovery show
+lon recovery rotate
+lon passphrase change
+lon passphrase reset
+```
+
 ## Named Instances
 
 Use `--instance` to create separate local instances:

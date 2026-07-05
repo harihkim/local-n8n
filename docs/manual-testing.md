@@ -115,6 +115,31 @@ Expected:
 - real deletion warns and asks you to type `yes`
 - pressing Enter keeps the default `no` choice and deletes nothing
 
+## Backup, Restore, And Recovery Admin
+
+Use an isolated home so this test does not touch a normal instance:
+
+```bash
+export LOCAL_N8N_HOME=/tmp/local-n8n-phase3-manual
+uv run lon up --instance phase3-manual --port 5687
+uv run lon backup --instance phase3-manual --yes --output /tmp/local-n8n-phase3-manual/phase3.n8nbundle
+uv run lon recovery show --instance phase3-manual
+uv run lon recovery rotate --instance phase3-manual
+uv run lon passphrase change --instance phase3-manual
+uv run lon dev wipe --yes
+uv run lon restore /tmp/local-n8n-phase3-manual/phase3.n8nbundle
+uv run lon status --instance phase3-manual
+uv run lon dev wipe --yes
+```
+
+Expected:
+
+- first backup prints a recovery code once and writes `recovery.wrapped`
+- later backup/recovery admin commands do not print secrets unless explicitly requested
+- restore starts n8n and `status` reports `running` / `reachable`
+- restored instances defer local `recovery.wrapped` creation until the next backup
+- `passphrase reset` requires a running, reachable instance and warns that old bundles are not rekeyed
+
 ## Legacy Image Update Prompt
 
 If an instance was created with the earlier built-in `1.113.3` image pin, run:

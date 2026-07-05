@@ -2,8 +2,8 @@
 
 ## Current phase
 
-Phase 2 is released as `v0.1.0a2`. Next implementation phase: Phase 3a crypto core for encrypted
-backup/restore.
+Phase 2 is released as `v0.1.0a2`. Phase 3 backup/restore/admin work is implemented on the development
+branch and is in MVP checkpoint review.
 
 ## Implemented
 
@@ -452,6 +452,24 @@ Added the first Phase 3d admin commands:
 
 Phase 3d admin commands are now implemented. The remaining MVP work is final checkpoint polish and release
 readiness review.
+
+### Phase 3 MVP checkpoint review
+
+Started the Phase 3 checkpoint review:
+
+- updated README and docs landing page so they no longer describe encrypted backup/restore as future work
+- added backup/restore and recovery-admin flow to the quickstart
+- added a Phase 3 manual testing checklist covering backup, restore, recovery show/rotate, passphrase
+  change/reset, and restored recovery-material behavior
+- clarified that PyPI publishing waits for Phase 3 checkpoint review rather than the older generic
+  backup/restore stability milestone
+
+Remaining release-readiness gaps:
+
+- run one final manual release-candidate smoke pass from `docs/manual-testing.md`
+- decide whether to quiet or document Docker Compose's warning about pre-created restore generation volumes
+- rename the stale local branch `phase-3a-crypto-core` before opening a PR or release branch
+- decide release version/tag strategy for the Phase 3 prerelease after review
 
 ## Verification
 
