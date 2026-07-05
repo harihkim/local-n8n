@@ -420,8 +420,11 @@ Follow-up hardening: `--replace` now snapshots the previous instance files/state
 new restore fails after the existing instance has been taken down, restore rolls back the previous Compose
 file, `.env`, state pointer, and running state, then removes the partially restored generation volume.
 
-Remaining Phase 3c decision: decide whether recovery material should be regenerated immediately after
-restore or deferred until the next backup.
+Recovery material decision: restore defers local `recovery.wrapped` creation until the next backup. Restore
+only receives one unlock secret, so it cannot generally recreate the same local recovery material: a
+passphrase unlock does not reveal the recovery code, and a recovery-code unlock does not provide the
+passphrase needed to wrap future local recovery material. The next backup creates a fresh recovery
+generation and prints the new recovery code once.
 
 ## Verification
 

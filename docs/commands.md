@@ -168,6 +168,9 @@ uv run lon --dry-run restore /tmp/example.n8nbundle
 payload checksums, restores the saved n8n volume into a fresh Docker volume, writes the restored `.env` and
 Compose file, registers the instance in `state.db`, starts n8n, and waits for the web UI.
 
+Restore does not recreate the original machine's `recovery.wrapped` file. The next `lon backup` for the
+restored instance creates fresh local recovery material and prints a new recovery code once.
+
 By default, `restore` refuses to overwrite an existing instance. Use `--replace` only when you intend to
 replace that instance; the current implementation first attempts a pre-restore encrypted backup with the
 same secret before it stops and replaces the existing instance.
