@@ -199,6 +199,42 @@ def test_restore_instance_restores_bundle_to_new_instance(
     assert record.data_volume == result.volume_name
 
 
+def test_first_backup_after_restore_creates_new_recovery_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    bundle_path = _write_restore_bundle(tmp_path, instance="restored")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if args[:2] == ["docker", "compose"] and "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout="", stderr="")
+        if args[:2] == ["docker", "run"] and "-cf" in args:
+            _write_volume_tar(cwd / "volume.tar")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.wait_for_web_ui_ready", lambda url: True)
+
+    restore_instance(bundle_path, secret="restore-secret")
+
+    recovery_path = tmp_path / "instances" / "restored" / "recovery.wrapped"
+    assert not recovery_path.exists()
+
+    result = backup_instance(
+        "restored",
+        passphrase="new-passphrase",
+        output_path=tmp_path / "after-restore.n8nbundle",
+        recovery_code_factory=lambda: "new-recovery-code",
+    )
+
+    assert result.recovery_code == "new-recovery-code"
+    assert recovery_path.exists()
+    opened = open_bundle(result.bundle_path.read_bytes(), secret="new-recovery-code")
+    assert _manifest_from_payload(opened.payload)["instance"] == "restored"
+
+
 def test_restore_instance_refuses_existing_instance_without_replace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
