@@ -416,8 +416,12 @@ Manual Docker smoke test:
 Observed restore polish item: Docker Compose warns that the generated restore volume already exists but was
 not created by Compose. Restore succeeds, but this may be worth quieting or documenting before release.
 
-Remaining Phase 3c hardening: tighten replace rollback behavior and decide whether recovery material should
-be regenerated immediately after restore or deferred until the next backup.
+Follow-up hardening: `--replace` now snapshots the previous instance files/state before replacement. If the
+new restore fails after the existing instance has been taken down, restore rolls back the previous Compose
+file, `.env`, state pointer, and running state, then removes the partially restored generation volume.
+
+Remaining Phase 3c decision: decide whether recovery material should be regenerated immediately after
+restore or deferred until the next backup.
 
 ## Verification
 

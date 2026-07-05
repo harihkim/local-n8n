@@ -63,6 +63,15 @@ class RestoreResult:
     pre_restore_backup: Path | None
 
 
+@dataclass(frozen=True)
+class _ReplaceRollbackContext:
+    record: InstanceRecord
+    config: InstanceConfig
+    compose_bytes: bytes
+    env_bytes: bytes
+    was_running: bool
+
+
 def backup_instance(
     instance_name: str,
     *,
@@ -199,70 +208,91 @@ def restore_instance(
             )
 
         pre_restore_backup: Path | None = None
-        if existing is not None:
-            pre_restore_backup = _pre_restore_backup_path(instance_name)
-            _report(progress, "Creating pre-restore safety backup...")
-            backup_instance(
-                instance_name,
-                passphrase=secret,
-                output_path=pre_restore_backup,
-                progress=progress,
-            )
-            existing_config = build_instance_config(
-                existing.name,
-                existing.port,
-                data_volume=existing.data_volume,
-                image_ref=existing.image_ref,
-            )
-            _report(progress, "Stopping existing instance before restore...")
-            _run_docker(
-                existing_config.instance_dir,
-                _compose_args(existing_config, "down"),
-                stream=True,
-            )
-
-        restored_port = port or _port_from_env_file(payload_files[PAYLOAD_ENV]) or 5678
-        volume_name = _restored_volume_name(instance_name)
-        config = build_instance_config(
-            instance_name,
-            restored_port,
-            data_volume=volume_name,
-            image_ref=image_ref,
-        )
-        _report(progress, "Restoring instance files...")
-        config.instance_dir.mkdir(parents=True, exist_ok=True)
-        config.env_path.write_bytes(payload_files[PAYLOAD_ENV].read_bytes())
-        _set_env_port(config.env_path, restored_port)
-        config.env_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-        config.compose_path.write_text(render_compose(config), encoding="utf-8")
-
-        _report(progress, "Restoring n8n Docker volume...")
-        _restore_volume(volume_name, payload_files[PAYLOAD_VOLUME_TAR])
-
-        with StateStore.open_default() as state:
-            state.upsert_instance(
-                InstanceRecord(
-                    name=instance_name,
-                    compose_path=config.compose_path,
-                    data_volume=volume_name,
-                    port=restored_port,
-                    image_ref=image_ref,
-                    enc_key_ref=config.env_path,
-                    created_at=utc_now(),
-                    db_type=_manifest_string(manifest, "db_type"),
-                    n8n_version=_manifest_optional_string(manifest, "n8n_version"),
+        rollback: _ReplaceRollbackContext | None = None
+        restored_config: InstanceConfig | None = None
+        restored_volume: str | None = None
+        try:
+            if existing is not None:
+                pre_restore_backup = _pre_restore_backup_path(instance_name)
+                _report(progress, "Creating pre-restore safety backup...")
+                backup_instance(
+                    instance_name,
+                    passphrase=secret,
+                    output_path=pre_restore_backup,
+                    progress=progress,
                 )
-            )
+                existing_config = build_instance_config(
+                    existing.name,
+                    existing.port,
+                    data_volume=existing.data_volume,
+                    image_ref=existing.image_ref,
+                )
+                rollback = _replace_rollback_context(existing, existing_config)
+                _report(progress, "Stopping existing instance before restore...")
+                _run_docker(
+                    existing_config.instance_dir,
+                    _compose_args(existing_config, "down"),
+                    stream=True,
+                )
 
-        _report(progress, "Starting restored n8n instance...")
-        _run_docker(config.instance_dir, _compose_args(config, "up", "-d"), stream=True)
-        url = f"http://localhost:{restored_port}"
-        _report(progress, "Waiting for n8n web UI...")
-        if not wait_for_web_ui_ready(url):
-            raise LonError(
-                "Restored n8n started, but the web UI did not become reachable in time.",
-                hint=f"Check Docker logs, then try opening {url}.",
+            restored_port = port or _port_from_env_file(payload_files[PAYLOAD_ENV]) or 5678
+            volume_name = _restored_volume_name(instance_name)
+            restored_volume = volume_name
+            config = build_instance_config(
+                instance_name,
+                restored_port,
+                data_volume=volume_name,
+                image_ref=image_ref,
             )
+            restored_config = config
+            _report(progress, "Restoring instance files...")
+            config.instance_dir.mkdir(parents=True, exist_ok=True)
+            config.env_path.write_bytes(payload_files[PAYLOAD_ENV].read_bytes())
+            _set_env_port(config.env_path, restored_port)
+            config.env_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            config.compose_path.write_text(render_compose(config), encoding="utf-8")
+
+            _report(progress, "Restoring n8n Docker volume...")
+            _restore_volume(volume_name, payload_files[PAYLOAD_VOLUME_TAR])
+
+            with StateStore.open_default() as state:
+                state.upsert_instance(
+                    InstanceRecord(
+                        name=instance_name,
+                        compose_path=config.compose_path,
+                        data_volume=volume_name,
+                        port=restored_port,
+                        image_ref=image_ref,
+                        enc_key_ref=config.env_path,
+                        created_at=utc_now(),
+                        db_type=_manifest_string(manifest, "db_type"),
+                        n8n_version=_manifest_optional_string(manifest, "n8n_version"),
+                    )
+                )
+
+            _report(progress, "Starting restored n8n instance...")
+            _run_docker(config.instance_dir, _compose_args(config, "up", "-d"), stream=True)
+            url = f"http://localhost:{restored_port}"
+            _report(progress, "Waiting for n8n web UI...")
+            if not wait_for_web_ui_ready(url):
+                raise LonError(
+                    "Restored n8n started, but the web UI did not become reachable in time.",
+                    hint=f"Check Docker logs, then try opening {url}.",
+                )
+        except Exception as exc:
+            if rollback is not None:
+                rollback_error = _rollback_replace_restore(
+                    rollback,
+                    restored_config=restored_config,
+                    restored_volume=restored_volume,
+                    progress=progress,
+                )
+                if rollback_error is not None:
+                    raise LonError(
+                        "Restore failed and rollback also failed.",
+                        hint=f"Original failure: {exc}. Rollback failure: {rollback_error}.",
+                    ) from exc
+            raise
 
         return RestoreResult(
             instance=instance_name,
@@ -273,6 +303,71 @@ def restore_instance(
             replaced=existing is not None,
             pre_restore_backup=pre_restore_backup,
         )
+
+
+def _replace_rollback_context(
+    record: InstanceRecord,
+    config: InstanceConfig,
+) -> _ReplaceRollbackContext:
+    return _ReplaceRollbackContext(
+        record=record,
+        config=config,
+        compose_bytes=config.compose_path.read_bytes(),
+        env_bytes=config.env_path.read_bytes(),
+        was_running=_container_is_running(
+            config.instance_dir,
+            _compose_args(config, "ps", "--all", "--format", "json"),
+        ),
+    )
+
+
+def _rollback_replace_restore(
+    rollback: _ReplaceRollbackContext,
+    *,
+    restored_config: InstanceConfig | None,
+    restored_volume: str | None,
+    progress: ProgressReporter | None,
+) -> str | None:
+    try:
+        _report(progress, "Rolling back failed replace restore...")
+        if restored_config is not None and restored_config.compose_path.exists():
+            _run_docker(
+                restored_config.instance_dir,
+                _compose_args(restored_config, "down"),
+                stream=True,
+            )
+        if restored_volume is not None and restored_volume != rollback.record.data_volume:
+            _run_docker(
+                rollback.config.instance_dir,
+                ["docker", "volume", "rm", "--force", restored_volume],
+                stream=True,
+            )
+
+        rollback.config.instance_dir.mkdir(parents=True, exist_ok=True)
+        rollback.config.compose_path.write_bytes(rollback.compose_bytes)
+        rollback.config.env_path.write_bytes(rollback.env_bytes)
+        rollback.config.env_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        with StateStore.open_default() as state:
+            state.upsert_instance(rollback.record)
+
+        if rollback.was_running:
+            _report(progress, "Restarting previous instance after rollback...")
+            _run_docker(
+                rollback.config.instance_dir,
+                _compose_args(rollback.config, "up", "-d"),
+                stream=True,
+            )
+            url = f"http://localhost:{rollback.record.port}"
+            _report(progress, "Waiting for previous n8n web UI...")
+            if not wait_for_web_ui_ready(url):
+                raise LonError(
+                    "Rollback restored the previous instance, "
+                    "but its web UI did not become reachable.",
+                    hint=f"Check Docker logs, then try opening {url}.",
+                )
+    except Exception as exc:
+        return str(exc)
+    return None
 
 
 def _load_or_create_recovery_code(

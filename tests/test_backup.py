@@ -9,7 +9,7 @@ from typing import Any, cast
 
 import pytest
 
-from local_n8n.core.backup import backup_instance, restore_instance
+from local_n8n.core.backup import BackupResult, backup_instance, restore_instance
 from local_n8n.core.crypto import open_bundle, seal_bundle
 from local_n8n.core.errors import CommandFailedError
 from local_n8n.core.runner import CommandResult
@@ -211,6 +211,78 @@ def test_restore_instance_refuses_existing_instance_without_replace(
         restore_instance(bundle_path, secret="restore-secret")
 
     assert "already exists" in str(exc_info.value)
+
+
+def test_restore_instance_replace_rolls_back_after_restore_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+    original_compose = (tmp_path / "instances" / "default" / "docker-compose.yml").read_bytes()
+    original_env = (tmp_path / "instances" / "default" / ".env").read_bytes()
+    bundle_path = _write_restore_bundle(tmp_path, instance="default")
+    calls: list[list[str]] = []
+    progress_messages: list[str] = []
+
+    def fake_backup_instance(
+        instance_name: str,
+        *,
+        passphrase: str,
+        output_path: Path | None = None,
+        progress: Any = None,
+        recovery_code_factory: Any = None,
+    ) -> BackupResult:
+        assert instance_name == "default"
+        assert passphrase == "restore-secret"
+        assert output_path is not None
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"pre-restore")
+        return BackupResult(
+            instance="default",
+            bundle_path=output_path,
+            checksum="checksum",
+            size=11,
+            recovery_code=None,
+            restarted=False,
+        )
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        calls.append(args)
+        if args[:2] == ["docker", "compose"] and "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    def fake_ready(url: str) -> bool:
+        return url == "http://localhost:5678"
+
+    monkeypatch.setattr("local_n8n.core.backup.backup_instance", fake_backup_instance)
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.wait_for_web_ui_ready", fake_ready)
+
+    with pytest.raises(Exception) as exc_info:
+        restore_instance(
+            bundle_path,
+            secret="restore-secret",
+            replace=True,
+            port=5691,
+            progress=progress_messages.append,
+        )
+
+    assert "did not become reachable" in str(exc_info.value)
+    assert (
+        tmp_path / "instances" / "default" / "docker-compose.yml"
+    ).read_bytes() == original_compose
+    assert (tmp_path / "instances" / "default" / ".env").read_bytes() == original_env
+    with StateStore(tmp_path / "state.db") as state:
+        record = state.get_instance("default")
+    assert record is not None
+    assert record.data_volume == "n8n_default_data"
+    assert record.port == 5678
+    assert any(command[:3] == ["docker", "volume", "rm"] for command in calls)
+    assert any(command[-2:] == ["up", "-d"] for command in calls)
+    assert "Rolling back failed replace restore..." in progress_messages
 
 
 def _seed_instance(tmp_path: Path) -> None:
