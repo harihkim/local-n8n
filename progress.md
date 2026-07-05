@@ -2,7 +2,8 @@
 
 ## Current phase
 
-Phase 2 branch: guided `lon init` first-run setup.
+Phase 2 is released as `v0.1.0a2`. Phase 3 backup/restore/admin work is implemented on the development
+branch and is in MVP checkpoint review.
 
 ## Implemented
 
@@ -43,7 +44,20 @@ Phase 2 branch: guided `lon init` first-run setup.
   `/setup` owner-account step.
 - Added WSL Docker backend detection to `lon doctor` / `lon init` prerequisites so Docker Desktop WSL
   integration is accepted as a valid backend and explained clearly.
-- Prepared the Phase 2 prerelease bump to `0.1.0a2` so the GitHub release can be tagged from merged `main`.
+- Released Phase 2 as GitHub prerelease `v0.1.0a2` with wheel/source artifacts and versioned docs published
+  as `latest`.
+- Started Phase 3a with a library-only encrypted bundle core in `core/crypto.py`: deterministic bundle
+  framing, canonical JSON headers, AES-256-GCM payload encryption, Argon2id passphrase/recovery slots, and
+  strict format/authentication errors.
+- Started Phase 3b with `lon backup`: downtime confirmation, passphrase prompt, stop-if-running volume
+  capture, encrypted `.n8nbundle` write, recovery material creation/reuse, backup metadata recording, and
+  restart-in-`finally` behavior.
+- Started Phase 3c with `lon restore`: decrypt/verify bundle payload, refuse existing instances unless
+  `--replace`, restore to a fresh generated Docker volume, rehydrate `.env`/Compose, register state, start
+  n8n, and wait for readiness.
+- Completed Phase 3d admin polish with `lon recovery show`, `lon recovery rotate`,
+  `lon passphrase change`, and `lon passphrase reset`: passphrase-authorized recovery-code
+  display/rotation, recovery-material rewrapping, and live-instance escape-hatch reset.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -153,6 +167,15 @@ Fixes:
 - Strengthened readiness so a generic HTTP response like `Cannot GET /` is not accepted as ready.
 - Treated n8n's first-run `/setup` redirect as ready, because setup/login/editor are all valid n8n web UI states.
 - Added `--verbose` debug output to make readiness and Docker command behavior easier to diagnose.
+
+Follow-up manual testing showed one more transient page:
+
+```text
+n8n is starting up. Please wait
+```
+
+That page contains the string `n8n`, so the earlier readiness heuristic accepted it too early. Fixed by
+treating the startup/waiting page as not ready and continuing to poll until setup/login/editor responds.
 
 ### Persistent CLI logs are still a separate decision
 
@@ -319,6 +342,152 @@ so a later `lon dev wipe --images` must still know which built-in n8n image to r
 regression tests for that state-gone image cleanup path, plus CLI coverage that `--images` still prompts
 with default `no` unless the user types `yes` or passes `--yes`.
 
+### Phase 3a crypto core
+
+Added the first Phase 3 slice as a library-only module, with no CLI, Docker, filesystem persistence, or
+backup orchestration yet. `core/crypto.py` implements the `.n8nbundle` envelope framing from `plan.md`:
+
+- `N8NB` magic prefix, 4-byte big-endian header length, canonical JSON header, and AES-GCM
+  `ciphertext || tag` payload
+- fixed constants from the plan: 32-byte DEK, 12-byte nonces, 16-byte salts/tags, Argon2id
+  `t=3, m=65536 KiB, p=4`
+- passphrase and recovery slots, either of which can unwrap the DEK and open the bundle
+- exact payload-length checks so trailing bytes are rejected
+- open path authenticates the exact header bytes as AES-GCM AAD and never re-serializes the header
+- deterministic random injection for tests only
+
+Added unit tests for passphrase/recovery round-trip, wrong secret, header tamper, bad magic, header-magic
+mismatch, unknown format schema, trailing bytes, empty payload rejection, and a deterministic known-answer
+SHA-256 vector.
+
+### Phase 3b backup create path
+
+Added the first backup command path without restore yet:
+
+- `lon backup` asks before downtime unless `--yes` or global `--yes` is used
+- the CLI prompts for a backup passphrase and confirms it
+- the first backup creates `recovery.wrapped` and prints the recovery code once
+- later backups reuse the wrapped recovery material using the backup passphrase
+- if n8n is running, backup stops only the n8n service, captures the volume, then starts n8n again in a
+  `finally` block and waits for the web UI
+- the encrypted bundle payload is a tar archive containing `manifest.json`, `volume.tar`,
+  `docker-compose.yml`, and `.env`
+- `state.db` now includes a `backups` table and records bundle path, checksum, size, timestamp, and version
+  metadata after successful writes
+
+Restore now consumes this payload format directly. The full real Docker backup→wipe→restore portability
+smoke test is still pending.
+
+Manual smoke test:
+
+- created isolated instance `backup-smoke` under `LOCAL_N8N_HOME=/tmp/local-n8n-phase3-smoke`
+- ran two real encrypted backups against Docker volume `n8n_backup-smoke_data`
+- verified first backup created a recovery code and second backup reused `recovery.wrapped`
+- opened the second bundle with the recovery code and confirmed the `N8NB` magic/header path works
+- confirmed n8n restarted and `lon status` reported `running` / `reachable`
+- cleaned up the smoke-test container, volume, local state, and temporary bundles
+
+### Phase 3c restore path
+
+Added the first restore command path:
+
+- `lon restore <bundle>` prompts for either the backup passphrase or recovery code
+- the bundle payload is decrypted through `core.crypto.open_bundle`
+- `manifest.json` schema and per-file `sha256`/size metadata are verified before restore
+- existing instances are refused by default
+- `--replace` first attempts a pre-restore encrypted safety backup using the provided secret, then runs
+  Compose `down` for the existing instance
+- restore creates a fresh generation-style Docker volume name such as `n8n_default_data.g<timestamp>`
+- `.env` is restored with `0600` permissions; `--port` can override `N8N_PORT`
+- Compose is rendered for the restored image and fresh volume, then `docker compose up -d` starts n8n and
+  readiness polling waits for the web UI
+
+Manual Docker smoke test:
+
+- created isolated instance `phase3c-smoke` under
+  `LOCAL_N8N_HOME=/tmp/local-n8n-phase3c-smoke-codex`
+- started n8n on port `5687`
+- wrote marker file `/home/node/.n8n/codex-smoke/marker.txt` inside the Docker volume
+- created encrypted backup `/tmp/local-n8n-phase3c-smoke-codex/phase3c-smoke.n8nbundle`
+- verified the first backup created a recovery code
+- ran `lon dev wipe --yes` to remove the original container, local state, and volume
+- restored from the bundle with the backup passphrase
+- verified `lon status --instance phase3c-smoke` reported `running` / `reachable`
+- verified the marker file restored with contents `phase3c-smoke-marker`
+- cleaned up the restored container, generated volume, local state, and instance files
+
+Observed restore polish item: Docker Compose warns that the generated restore volume already exists but was
+not created by Compose. Restore succeeds, but this may be worth quieting or documenting before release.
+
+Follow-up hardening: `--replace` now snapshots the previous instance files/state before replacement. If the
+new restore fails after the existing instance has been taken down, restore rolls back the previous Compose
+file, `.env`, state pointer, and running state, then removes the partially restored generation volume.
+
+Recovery material decision: restore defers local `recovery.wrapped` creation until the next backup. Restore
+only receives one unlock secret, so it cannot generally recreate the same local recovery material: a
+passphrase unlock does not reveal the recovery code, and a recovery-code unlock does not provide the
+passphrase needed to wrap future local recovery material. The next backup creates a fresh recovery
+generation and prints the new recovery code once.
+
+### Phase 3d recovery admin
+
+Added the first Phase 3d admin commands:
+
+- `lon recovery show` prompts for the backup passphrase
+- it unlocks the instance's local `recovery.wrapped` file through the passphrase slot
+- it prints the active recovery code only on explicit request
+- `lon recovery rotate` prompts for the backup passphrase
+- it verifies the existing recovery material before replacing it
+- it writes fresh local `recovery.wrapped` material and prints the new recovery code once
+- future backups reuse the rotated recovery code, while existing bundles remain tied to the recovery code
+  active when they were created
+- `lon passphrase change` prompts for the current backup passphrase, then a new passphrase with confirmation
+- it rewraps the existing recovery code under the new passphrase without changing the recovery code
+- future backups can reuse the same recovery code with the new passphrase; existing bundle files are not
+  rekeyed
+- `lon passphrase reset` confirms that existing bundles are not rekeyed, requires a running/reachable
+  instance, then writes fresh recovery material and prints the new recovery code once
+- `--dry-run` previews the prompt/unlock/display/reset steps without reading or printing the secret
+- `--json` reports admin outcomes without including passphrases or recovery codes in JSON
+
+Phase 3d admin commands are now implemented. The remaining MVP work is final checkpoint polish and release
+readiness review.
+
+### Phase 3 MVP checkpoint review
+
+Started the Phase 3 checkpoint review:
+
+- updated README and docs landing page so they no longer describe encrypted backup/restore as future work
+- added backup/restore and recovery-admin flow to the quickstart
+- added a Phase 3 manual testing checklist covering backup, restore, recovery show/rotate, passphrase
+  change/reset, and restored recovery-material behavior
+- clarified that PyPI publishing waits for Phase 3 checkpoint review rather than the older generic
+  backup/restore stability milestone
+- quieted Docker Compose's restore warning for pre-created generation volumes by rendering restored volumes
+  as externally managed Compose volumes
+
+Remaining release-readiness gaps:
+
+- decide release version/tag strategy for the Phase 3 prerelease after review
+
+Manual release-candidate smoke pass:
+
+- baseline help and dry-run commands passed
+- `lon doctor --port 5689` passed on WSL with Docker Desktop integration
+- initial default-instance smoke attempt exposed a manual-testing hazard: `LOCAL_N8N_HOME` isolates files and
+  state, but Docker volume names are global and `default` maps to `n8n_default_data`
+- reran lifecycle smoke with unique instance `rc-smoke-codex` on port `5690`
+- verified `init`, `status`, `list`, `stop`, `start`, `down`, and the expected `restart` failure after
+  `down`
+- wrote a marker file into the Docker volume, created an encrypted backup, and verified first recovery-code
+  creation
+- verified `recovery show`, `recovery rotate`, `passphrase change`, and live-instance `passphrase reset`
+- wiped the original volume, restored from the original bundle with the original passphrase, and verified
+  `status` reported `running` / `reachable`
+- verified restored marker contents `rc-smoke-marker`
+- verified restored instances do not immediately recreate `recovery.wrapped`
+- cleaned up the unique smoke-test container, networks, generated volumes, local instance files, and state
+
 ## Verification
 
 - `uv run --python 3.13 pytest tests`
@@ -342,5 +511,6 @@ with default `no` unless the user types `yes` or passes `--yes`.
 
 ## Next phase
 
-Phase 2 implementation is ready for manual smoke testing and PR review. Follow-up candidates after the
-Phase 2 merge: persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.
+Run the MVP checkpoint review for Phase 3: docs/readme alignment, final backup→restore smoke notes,
+branch naming cleanup, and release-readiness gaps. Follow-up candidates after the Phase 3 core loop:
+persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.

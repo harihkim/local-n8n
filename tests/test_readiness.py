@@ -67,6 +67,28 @@ def test_wait_for_web_ui_ready_retries_until_success(monkeypatch: pytest.MonkeyP
     )
 
 
+def test_wait_for_web_ui_ready_retries_past_starting_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = [
+        FakeResponse(200, "n8n is starting up. Please wait"),
+        FakeResponse(200, "<html><title>n8n setup</title></html>", "http://localhost:5678/setup"),
+    ]
+
+    def fake_urlopen(request: Request, timeout: int) -> FakeResponse:
+        return responses.pop(0)
+
+    monkeypatch.setattr("local_n8n.core.readiness.urlopen", fake_urlopen)
+    monkeypatch.setattr("local_n8n.core.readiness.time.sleep", lambda seconds: None)
+
+    assert readiness.wait_for_web_ui_ready(
+        "http://localhost:5678",
+        timeout_seconds=1,
+        interval_seconds=0.01,
+    )
+    assert responses == []
+
+
 def test_wait_for_web_ui_ready_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "local_n8n.core.readiness.urlopen",
@@ -98,6 +120,15 @@ def test_web_ui_readiness_rejects_cannot_get_response(monkeypatch: pytest.Monkey
     monkeypatch.setattr(
         "local_n8n.core.readiness.urlopen",
         lambda request, timeout: FakeResponse(200, "Cannot GET /"),
+    )
+
+    assert not readiness.is_web_ui_ready("http://localhost:5678")
+
+
+def test_web_ui_readiness_rejects_starting_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "local_n8n.core.readiness.urlopen",
+        lambda request, timeout: FakeResponse(200, "n8n is starting up. Please wait"),
     )
 
     assert not readiness.is_web_ui_ready("http://localhost:5678")

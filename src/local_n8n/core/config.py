@@ -22,6 +22,7 @@ def build_instance_config(
     port: int = 5678,
     data_volume: str | None = None,
     image_ref: str = DEFAULT_IMAGE_REF,
+    external_volume: bool = False,
 ) -> InstanceConfig:
     validate_instance_name(instance_name)
     return InstanceConfig(
@@ -30,6 +31,7 @@ def build_instance_config(
         instance_dir=config_home() / "instances" / instance_name,
         data_volume=data_volume,
         image_ref=image_ref,
+        external_volume=external_volume,
     )
 
 

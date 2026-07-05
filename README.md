@@ -1,10 +1,10 @@
 # local-n8n (`lon`)
 
-`lon` is a CLI for running a local self-hosted n8n instance with a path toward encrypted, portable backups.
+`lon` is a CLI for running a local self-hosted n8n instance with encrypted, portable backups.
 
-The current alpha focuses on the local lifecycle: guided init, Docker Compose management, instance state,
-diagnostics, and docs. It does not automatically install Docker, manage Windows bootstrap, configure
-tunnels, or create encrypted backups yet.
+The current development branch includes the Phase 3 portability loop: guided init, Docker Compose
+management, instance state, diagnostics, encrypted backup/restore, and recovery/passphrase admin commands.
+It does not automatically install Docker, manage Windows bootstrap, configure tunnels, or publish remotes.
 
 Documentation: https://harihkim.github.io/local-n8n/
 
@@ -18,7 +18,11 @@ On Windows, develop and run the CLI inside WSL Ubuntu. Automatic WSL/Docker prov
 
 ## Install from GitHub
 
-After the first GitHub prerelease is tagged, install with:
+The latest tagged prerelease is `v0.1.0a2`; it contains the local lifecycle work. The Phase 3
+backup/restore/admin commands described below are currently on the development branch and will be included
+in a later prerelease.
+
+Install the latest tagged prerelease with:
 
 ```bash
 uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
@@ -58,12 +62,31 @@ Lifecycle semantics:
 - `lon restart`: restart an existing container; if `lon down` removed it, use `lon up`.
 - `lon down`: remove the container/network but keep the Docker data volume.
 
+Encrypted portability:
+
+```bash
+uv run lon backup
+uv run lon restore /path/to/default-2026-07-05T12-00-00Z.n8nbundle
+uv run lon recovery show
+uv run lon recovery rotate
+uv run lon passphrase change
+uv run lon passphrase reset
+```
+
+- `lon backup`: briefly stops n8n for a consistent Docker-volume snapshot, writes an encrypted
+  `.n8nbundle`, and restarts n8n if it was running.
+- First backup prints a recovery code once and writes local `recovery.wrapped` material for future backups.
+- `lon restore`: decrypts with either the backup passphrase or recovery code, restores into a fresh Docker
+  volume, writes restored instance files, registers state, starts n8n, and waits for readiness.
+- Recovery and passphrase admin commands manage local recovery material. Existing bundles are never rekeyed
+  by rotate/change/reset; they remain tied to the unlock material active when they were created.
+
 `lon init` writes instance files under `~/.config/local-n8n/instances/default/` unless
 `LOCAL_N8N_HOME` is set. It generates `.env` once, stores a fixed `N8N_ENCRYPTION_KEY`, sets the file to
 mode `0600`, and does not overwrite that key on later runs.
 
-Phase 1 records instances in `~/.config/local-n8n/state.db`. Existing Phase 0 instance files are adopted
-without overwriting `.env`.
+`lon` records instances and backup metadata in `~/.config/local-n8n/state.db`. Existing Phase 0 instance
+files are adopted without overwriting `.env`.
 
 Use `--verbose` before the command for diagnostic output:
 
@@ -101,7 +124,7 @@ Use `--yes` only for development automation.
 
 CI runs lint, format check, `ty`, Pyrefly, tests, and docs build on pushes and pull requests. Pushing a
 `v*` tag builds the wheel/source distribution and creates a GitHub prerelease with those artifacts attached.
-PyPI publishing is intentionally deferred until the MVP backup/restore loop is solid.
+PyPI publishing is intentionally deferred until the Phase 3 MVP checkpoint is reviewed.
 
 The documentation site is built with MkDocs Material and published with versioned URLs. The default docs
 version is `latest`, with `dev` available for unreleased work on `main`.
@@ -116,5 +139,4 @@ Instances that still have the earlier built-in `1.113.3` image pin recorded in l
 move to this stable image reference on the next `lon up` or `lon init`. Press Enter to accept the default
 `yes`, or type `n` to keep the existing image. Custom image references are left unchanged.
 
-An explicit `lon update` command and user-selectable image/version settings are planned before the
-backup/restore workflow depends on image version metadata.
+An explicit `lon update` command and user-selectable image/version settings remain planned follow-ups.

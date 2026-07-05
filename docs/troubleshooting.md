@@ -72,6 +72,11 @@ http://localhost:5683
 
 That is normal for a fresh n8n instance. It means n8n is ready for first-run owner setup.
 
+## Browser Shows `n8n is starting up`
+
+That page means the HTTP server is reachable, but the editor is not ready yet. `lon up` and `lon init`
+should keep waiting until the setup/login/editor UI is ready.
+
 ## Browser Shows `Cannot GET /`
 
 This should not count as ready. `lon` rejects generic `Cannot GET ...` responses in its readiness check.

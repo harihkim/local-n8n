@@ -41,7 +41,7 @@ roadmap** (Phase 0 = minimal CLI that generates + runs the compose → Phase 3 =
 | Area | Decision |
 |---|---|
 | CLI runtime | Real CLI runs **inside WSL Ubuntu** on Windows; thin PowerShell bootstrap only on the host. One code path for Win/Linux/macOS. |
-| Docker | **Docker Engine in WSL/Linux** (apt). No Docker Desktop / WSL-integration hack. macOS uses **colima** (detect existing Docker Desktop/OrbStack). |
+| Docker | Docker must be reachable from the Linux/WSL CLI. On Windows, **Docker Desktop with WSL integration is valid** and common; Docker Engine installed directly inside WSL is also valid. macOS uses **colima** or an existing Docker-compatible runtime. |
 | Install policy | **Detect → explain → prompt → install** with consent; handle WSL reboot-resume. Never silent. |
 | Backup fidelity | **Full instance bundle**: the whole `/home/node/.n8n` volume (DB, `config`, binary data) + `.env` + compose + **manifest**; `pg_dump` added in Postgres mode. Logical `export:workflow` optional. |
 | Bundle security | **Envelope encryption, multi-slot**: passphrase + **default-on recovery code** (persisted so every backup can include the recovery slot) + optional OS keychain (**often unavailable on WSL** — see §10). |
@@ -286,7 +286,7 @@ the passphrase + emit recovery slots.
 
 | Command | Behavior |
 |---|---|
-| `lon doctor` | **Read-only** check of OS, WSL (Win), Docker Engine, distro, port availability; **detect Docker Desktop WSL-integration vs Engine-in-WSL conflict** and explain the chosen path; pass/fail + fix hints. Installs happen via `init`/`bootstrap` or the opt-in **`doctor --fix` (post-MVP)** — never bare `doctor` |
+| `lon doctor` | **Read-only** check of OS, WSL (Win), Docker CLI/daemon/backend, distro, port availability; reports whether Docker Desktop WSL integration or an in-distro Docker Engine is the active backend; pass/fail + fix hints. Installs happen via `init`/`bootstrap` or the opt-in **`doctor --fix` (post-MVP)** — never bare `doctor` |
 | `lon init` | Guided first run: ensure prereqs (**detect + guide**; auto-install is post-MVP) → generate compose+`.env` → generate & store `N8N_ENCRYPTION_KEY` → register instance → **offer tunnel/domain setup (skippable, post-MVP)** → `up` → `open`; explains the browser owner-account step |
 | `lon up` / `start` · `down` / `stop` · `restart` | container lifecycle (down keeps the volume) |
 | `lon status` | container state, health, URL, version (SQLite + `docker`) |
@@ -516,10 +516,9 @@ is **0600** to satisfy `N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS`. Do not rely on h
   and continues on re-run (no silent auto-resume).
 - **Docker group not yet effective:** after adding user to `docker`, instruct re-login or run via
   `newgrp`/`sudo` for the current session.
-- **Docker Desktop vs Engine-in-WSL conflict:** if Docker Desktop's WSL integration is enabled for the
-  distro **and** a native Engine runs inside WSL, the two `docker` contexts can clash. `doctor` detects
-  both, names which is active, and recommends using exactly one (default Engine-in-WSL; otherwise use
-  Desktop's and skip our Engine install).
+- **Docker backend ambiguity:** Docker Desktop WSL integration is a valid backend. A native Docker Engine
+  inside WSL is also valid. Problems arise when the CLI/daemon/context are mixed or unreachable; `doctor`
+  names the active backend and gives setup-specific guidance instead of treating Docker Desktop as a failure.
 - **`doctor --fix` (opt-in installs):** bare `doctor` is **read-only** and only diagnoses; **`doctor --fix`**
   is the explicit, consent-gated path that performs the recommended installs (Docker Engine / colima,
   service start, `docker`-group add). It lands with Phase-4 automation and shares the same install routines
@@ -614,12 +613,13 @@ from the one before it — the compose `lon` renders in Phase 0 is the same one 
 ### Phase 2 — `lon init` guided first run (Linux/WSL)
 - **Goal:** one command from nothing to a running, registered instance.
 - **Build:** `init` (detect + **guided manual** Docker install, generate & store `N8N_ENCRYPTION_KEY`,
-  register, `up`, `open`, explain the browser owner step); `doctor` adds the **Docker Desktop vs
-  Engine-in-WSL** conflict check.
+  register, `up`, `open`, explain the browser owner step); `doctor` reports the active WSL Docker backend
+  clearly, including Docker Desktop WSL integration when that is the reachable backend.
 - **Checkpoint ✅:** on a fresh Linux/WSL shell, `lon init` yields a working instance; re-running is
-  idempotent; the conflict check fires when Docker Desktop integration is enabled.
+  idempotent; Docker Desktop WSL integration is accepted and reported clearly, while missing or unreachable
+  Docker gets actionable guidance.
 - **Tests:** unit — `init` flow with mocked prereq detection + install prompts; **idempotency** (second
-  run no-ops); Docker Desktop-vs-Engine-in-WSL conflict detection from fixture inputs.
+  run no-ops); WSL Docker backend detection from fixture inputs.
 - **Ref:** §7, §11 (init), §12.
 
 ### Phase 3 — Encrypted backup / restore  ← the actual product  (slices: 3a → 3b → 3c core loop, then 3d admin)

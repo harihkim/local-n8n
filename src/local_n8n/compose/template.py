@@ -24,6 +24,7 @@ class InstanceConfig:
     instance_dir: Path
     data_volume: str | None = None
     image_ref: str = DEFAULT_IMAGE_REF
+    external_volume: bool = False
 
     @property
     def compose_path(self) -> Path:
@@ -43,6 +44,7 @@ class InstanceConfig:
 
 
 def render_compose(config: InstanceConfig) -> str:
+    volume_external = "\n    external: true" if config.external_volume else ""
     return f"""services:
   n8n:
     image: {config.image_ref}
@@ -57,6 +59,7 @@ def render_compose(config: InstanceConfig) -> str:
 volumes:
   n8n_data:
     name: {config.volume_name}
+{volume_external}
 """
 
 

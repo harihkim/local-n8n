@@ -2,7 +2,7 @@
 
 `local-n8n` currently publishes GitHub prereleases, not PyPI packages.
 
-PyPI publishing is deferred until the core backup/restore MVP loop is stable.
+PyPI publishing is deferred until the Phase 3 MVP checkpoint is reviewed.
 
 ## Package Release
 

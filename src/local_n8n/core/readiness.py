@@ -10,7 +10,12 @@ from local_n8n.core.diagnostics import debug
 
 READY_MARKERS = ("n8n", "window.base_path", "/assets/")
 READY_PATHS = ("/setup",)
-NOT_READY_MARKERS = ("cannot get", "cannot post")
+NOT_READY_MARKERS = (
+    "cannot get",
+    "cannot post",
+    "n8n is starting up",
+    "please wait",
+)
 
 
 def wait_for_web_ui_ready(

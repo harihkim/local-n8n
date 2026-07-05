@@ -125,6 +125,129 @@ Options:
 
 If the container is not present, `restart` fails fast and suggests `lon up`.
 
+## Portability
+
+### `lon backup`
+
+Create an encrypted local `.n8nbundle` for a registered instance.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+- `--output`, `-o`: backup bundle path. Default: `$LOCAL_N8N_HOME/backups/<instance>-<timestamp>.n8nbundle`.
+- `--yes`, `-y`: skip the downtime confirmation prompt.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run backup --instance preview
+```
+
+`backup` briefly stops n8n if the container is running, captures the Docker volume, writes an encrypted
+bundle, records backup metadata in `state.db`, and then starts n8n again if it was running before.
+
+The first backup creates local recovery material and prints a recovery code once. Store that code somewhere
+safe; future backups reuse the local wrapped recovery material.
+
+### `lon restore`
+
+Restore an encrypted local `.n8nbundle`.
+
+Options:
+
+- `--replace`: replace an existing instance after first creating a pre-restore safety backup.
+- `--port`, `-p`: override the restored n8n port.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run restore /tmp/example.n8nbundle
+```
+
+`restore` decrypts the bundle with either the backup passphrase or recovery code, verifies the manifest and
+payload checksums, restores the saved n8n volume into a fresh Docker volume, writes the restored `.env` and
+Compose file, registers the instance in `state.db`, starts n8n, and waits for the web UI.
+
+Restore does not recreate the original machine's `recovery.wrapped` file. The next `lon backup` for the
+restored instance creates fresh local recovery material and prints a new recovery code once.
+
+By default, `restore` refuses to overwrite an existing instance. Use `--replace` only when you intend to
+replace that instance; the current implementation first attempts a pre-restore encrypted backup with the
+same secret before it stops and replaces the existing instance.
+
+### `lon recovery show`
+
+Show the active backup recovery code after authorizing with the backup passphrase.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run recovery show
+```
+
+`recovery show` reads the local `recovery.wrapped` file for the instance, unlocks it with the backup
+passphrase, and prints the recovery code. Use it only when you intentionally need to store or verify the
+code; normal backups reuse the wrapped recovery material without printing the code again.
+
+### `lon recovery rotate`
+
+Create a new recovery code for future backups after authorizing with the backup passphrase.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run recovery rotate
+```
+
+`recovery rotate` replaces the local `recovery.wrapped` material and prints the new recovery code once.
+Existing bundle files are not rekeyed; they still open with the recovery code that was active when they
+were created. Run a fresh backup after rotating if you want a bundle tied to the new recovery code.
+
+### `lon passphrase change`
+
+Change the backup passphrase used to unlock local recovery material for future backups.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run passphrase change
+```
+
+`passphrase change` unlocks the local `recovery.wrapped` file with the current backup passphrase and
+rewrites it with the new backup passphrase. Existing bundle files are not rekeyed; each bundle still opens
+with the passphrase or recovery code that was active when that bundle was created.
+
+### `lon passphrase reset`
+
+Reset backup passphrase and recovery material for a running, reachable local instance.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run passphrase reset
+```
+
+`passphrase reset` is the escape hatch for a live instance when both the old backup passphrase and recovery
+code are lost. It requires the n8n container to be running and the web UI to be reachable, then writes fresh
+local `recovery.wrapped` material and prints a new recovery code once. Existing bundle files are not rekeyed
+and remain openable only with the passphrase or recovery code that was active when they were created.
+
 ## Inspection
 
 ### `lon status`
