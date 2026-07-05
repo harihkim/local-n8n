@@ -511,6 +511,53 @@ def test_cli_passphrase_change_success(tmp_path: Path, monkeypatch: pytest.Monke
     assert "Existing backup bundles were not rekeyed." in result.stderr
 
 
+def test_cli_passphrase_reset_dry_run_outputs_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--dry-run", "passphrase", "reset", "--instance", "default"])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would require a running, reachable n8n instance" in result.stderr
+    assert "would print the new recovery code once" in result.stderr
+
+
+def test_cli_passphrase_reset_cancelled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["passphrase", "reset"], input="n\n")
+
+    assert result.exit_code == 1
+    assert "Passphrase reset cancelled." in result.stderr
+
+
+def test_cli_passphrase_reset_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_reset_backup_passphrase(
+        instance_name: str,
+        *,
+        new_passphrase: str,
+        progress: Callable[[str], None],
+    ) -> str:
+        assert instance_name == "default"
+        assert new_passphrase == "new-passphrase"
+        progress("fake reset progress")
+        return "fresh-recovery-code"
+
+    monkeypatch.setattr("local_n8n.app._prompt_new_backup_passphrase", lambda: "new-passphrase")
+    monkeypatch.setattr("local_n8n.app.reset_backup_passphrase", fake_reset_backup_passphrase)
+
+    result = runner.invoke(app, ["--yes", "passphrase", "reset"])
+
+    assert result.exit_code == 0
+    assert "fake reset progress" in result.stderr
+    assert "Backup passphrase reset" in result.stderr
+    assert "fresh-recovery-code" in result.stderr
+
+
 def test_cli_up_prompts_for_legacy_image_update_with_yes_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

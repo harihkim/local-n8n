@@ -13,6 +13,7 @@ from local_n8n.core.backup import (
     BackupResult,
     backup_instance,
     change_backup_passphrase,
+    reset_backup_passphrase,
     restore_instance,
     reveal_recovery_code,
     rotate_recovery_code,
@@ -311,6 +312,56 @@ def test_change_backup_passphrase_rewraps_recovery_material(
         )["instance"]
         == "default"
     )
+
+
+def test_reset_backup_passphrase_requires_live_instance_and_creates_fresh_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        calls.append(args)
+        if args[:2] == ["docker", "compose"] and "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.wait_for_web_ui_ready", lambda url: True)
+
+    recovery_code = reset_backup_passphrase(
+        "default",
+        new_passphrase="new-passphrase",
+        recovery_code_factory=lambda: "fresh-recovery-code",
+    )
+
+    assert recovery_code == "fresh-recovery-code"
+    assert reveal_recovery_code("default", passphrase="new-passphrase") == "fresh-recovery-code"
+    assert any(command[:2] == ["docker", "compose"] and "ps" in command for command in calls)
+
+
+def test_reset_backup_passphrase_refuses_stopped_instance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    _seed_instance(tmp_path)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if args[:2] == ["docker", "compose"] and "ps" in args:
+            return CommandResult(args=args, returncode=0, stdout='[{"State":"exited"}]', stderr="")
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.backup.run", fake_run)
+    monkeypatch.setattr("local_n8n.core.backup.run_streaming", fake_run)
+
+    with pytest.raises(Exception) as exc_info:
+        reset_backup_passphrase("default", new_passphrase="new-passphrase")
+
+    assert "must be running" in str(exc_info.value)
 
 
 def test_restore_instance_restores_bundle_to_new_instance(

@@ -348,7 +348,61 @@ def change_backup_passphrase(
     recovery_path.chmod(0o600)
 
 
+def reset_backup_passphrase(
+    instance_name: str,
+    *,
+    new_passphrase: str,
+    progress: ProgressReporter | None = None,
+    recovery_code_factory: RecoveryCodeFactory | None = None,
+) -> str:
+    config, record = _instance_config_for_recovery(instance_name)
+    if not config.compose_path.exists() or not config.env_path.exists():
+        raise LonError(
+            f"Instance {instance_name!r} is missing compose or environment files.",
+            hint=f"Expected files under {config.instance_dir}.",
+        )
+
+    _report(progress, "Checking live n8n instance before reset...")
+    if not _container_is_running(
+        config.instance_dir,
+        _compose_args(config, "ps", "--all", "--format", "json"),
+    ):
+        raise LonError(
+            f"Instance {instance_name!r} must be running before passphrase reset.",
+            hint=(
+                f"Run `lon start --instance {instance_name}` "
+                f"or `lon up --instance {instance_name}` first."
+            ),
+        )
+    url = f"http://localhost:{record.port}"
+    if not wait_for_web_ui_ready(url):
+        raise LonError(
+            f"Instance {instance_name!r} is running, but the web UI is not reachable.",
+            hint=f"Check Docker logs, then try opening {url}.",
+        )
+
+    recovery_code = (recovery_code_factory or _generate_recovery_code)()
+    recovery_path = config.instance_dir / "recovery.wrapped"
+    _write_recovery_material(
+        recovery_path,
+        passphrase=new_passphrase,
+        recovery_code=recovery_code,
+    )
+    return recovery_code
+
+
 def _recovery_material_path(instance_name: str) -> Path:
+    config, _record = _instance_config_for_recovery(instance_name)
+    recovery_path = config.instance_dir / "recovery.wrapped"
+    if not recovery_path.exists():
+        raise LonError(
+            f"Recovery material for instance {instance_name!r} does not exist.",
+            hint="Run `lon backup` first to create and display a recovery code.",
+        )
+    return recovery_path
+
+
+def _instance_config_for_recovery(instance_name: str) -> tuple[InstanceConfig, InstanceRecord]:
     with StateStore.open_default() as state:
         record = state.get_instance(instance_name)
         if record is None:
@@ -363,13 +417,7 @@ def _recovery_material_path(instance_name: str) -> Path:
         data_volume=record.data_volume,
         image_ref=record.image_ref,
     )
-    recovery_path = config.instance_dir / "recovery.wrapped"
-    if not recovery_path.exists():
-        raise LonError(
-            f"Recovery material for instance {instance_name!r} does not exist.",
-            hint="Run `lon backup` first to create and display a recovery code.",
-        )
-    return recovery_path
+    return config, record
 
 
 def _open_recovery_material(recovery_path: Path, *, passphrase: str) -> str:
@@ -385,6 +433,22 @@ def _open_recovery_material(recovery_path: Path, *, passphrase: str) -> str:
             hint="Use the passphrase that was used when backups were first enabled.",
         ) from exc
     return opened.payload.decode("utf-8")
+
+
+def _write_recovery_material(
+    recovery_path: Path,
+    *,
+    passphrase: str,
+    recovery_code: str,
+) -> None:
+    recovery_path.write_bytes(
+        seal_bundle(
+            recovery_code.encode("utf-8"),
+            passphrase=passphrase,
+            recovery_code=recovery_code,
+        )
+    )
+    recovery_path.chmod(0o600)
 
 
 def _replace_rollback_context(

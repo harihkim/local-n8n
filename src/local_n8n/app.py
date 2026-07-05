@@ -14,6 +14,7 @@ from rich.table import Table
 from local_n8n.core.backup import (
     backup_instance,
     change_backup_passphrase,
+    reset_backup_passphrase,
     restore_instance,
     reveal_recovery_code,
     rotate_recovery_code,
@@ -273,6 +274,26 @@ def _passphrase_change_dry_run_payload(*, instance: str) -> dict[str, Any]:
     }
 
 
+def _passphrase_reset_dry_run_payload(*, instance: str) -> dict[str, Any]:
+    config = build_instance_config(instance)
+    return {
+        "ok": True,
+        "command": "passphrase reset",
+        "dry_run": True,
+        "instance": instance,
+        "would": {
+            "confirm_old_bundles_locked": True,
+            "prompt_new_passphrase": True,
+            "require_running_instance": True,
+            "wait_for_web_ui": True,
+            "discard_existing_recovery_material": _path(config.instance_dir / "recovery.wrapped"),
+            "write_new_recovery_material": _path(config.instance_dir / "recovery.wrapped"),
+            "print_new_recovery_code": True,
+            "rekey_existing_bundles": False,
+        },
+    }
+
+
 def _emit_dry_run(payload: dict[str, Any]) -> None:
     if options.json_output:
         _emit_json(payload)
@@ -381,6 +402,29 @@ def _emit_passphrase_change_dry_run(payload: dict[str, Any]) -> None:
         f"[dim]would rewrite recovery material: "
         f"{payload['would']['rewrite_recovery_material']}[/dim]"
     )
+    console.print("[dim]would not rekey existing backup bundles[/dim]")
+
+
+def _emit_passphrase_reset_dry_run(payload: dict[str, Any]) -> None:
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: passphrase reset[/dim]")
+    console.print(f"[dim]instance: {payload['instance']}[/dim]")
+    console.print("[dim]would confirm old bundles may become locked[/dim]")
+    console.print("[dim]would prompt for new backup passphrase and confirmation[/dim]")
+    console.print("[dim]would require a running, reachable n8n instance[/dim]")
+    console.print(
+        "[dim]would discard existing recovery material: "
+        f"{payload['would']['discard_existing_recovery_material']}[/dim]"
+    )
+    console.print(
+        f"[dim]would write new recovery material: "
+        f"{payload['would']['write_new_recovery_material']}[/dim]"
+    )
+    console.print("[dim]would print the new recovery code once[/dim]")
     console.print("[dim]would not rekey existing backup bundles[/dim]")
 
 
@@ -559,6 +603,24 @@ def _confirm_backup() -> bool:
     return answer.strip().lower() in {"y", "yes"}
 
 
+def _confirm_passphrase_reset() -> bool:
+    if options.assume_yes:
+        return True
+    console.print(
+        "[yellow]Passphrase reset creates new recovery material. "
+        "Existing bundles are not rekeyed.[/yellow]"
+    )
+    console.print(
+        "[yellow]Old bundles still require the passphrase or recovery code "
+        "active when they were created.[/yellow]"
+    )
+    try:
+        answer = console.input("[bold yellow]Reset backup passphrase? (y/N): [/bold yellow]")
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
 def _prompt_backup_passphrase() -> str:
     first = getpass.getpass("Backup passphrase: ", stream=sys.stderr)
     second = getpass.getpass("Confirm backup passphrase: ", stream=sys.stderr)
@@ -679,6 +741,43 @@ def passphrase_change(
             "command": "passphrase change",
             "instance": instance,
             "passphrase_changed": True,
+            "existing_bundles_rekeyed": False,
+        }
+    )
+
+
+@passphrase_app.command("reset")
+def passphrase_reset(
+    instance: Annotated[str, typer.Option("--instance", "-i", help="Instance name.")] = "default",
+) -> None:
+    """Reset backup passphrase and recovery material for a live instance."""
+    if options.dry_run:
+        _emit_passphrase_reset_dry_run(_passphrase_reset_dry_run_payload(instance=instance))
+        return
+
+    if not _confirm_passphrase_reset():
+        _handle_error(LonError("Passphrase reset cancelled.", hint="Nothing was changed."))
+
+    try:
+        new_passphrase = _prompt_new_backup_passphrase()
+        recovery_code = reset_backup_passphrase(
+            instance,
+            new_passphrase=new_passphrase,
+            progress=_progress,
+        )
+    except LonError as error:
+        _handle_error(error)
+
+    console.print("[bold yellow]Backup passphrase reset. New recovery code created.[/bold yellow]")
+    console.print(f"[bold yellow]{recovery_code}[/bold yellow]")
+    console.print("[dim]Existing backup bundles were not rekeyed.[/dim]")
+    _maybe_emit_json(
+        {
+            "ok": True,
+            "command": "passphrase reset",
+            "instance": instance,
+            "passphrase_reset": True,
+            "recovery_code_created": True,
             "existing_bundles_rekeyed": False,
         }
     )

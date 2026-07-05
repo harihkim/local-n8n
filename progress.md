@@ -55,9 +55,9 @@ backup/restore.
 - Started Phase 3c with `lon restore`: decrypt/verify bundle payload, refuse existing instances unless
   `--replace`, restore to a fresh generated Docker volume, rehydrate `.env`/Compose, register state, start
   n8n, and wait for readiness.
-- Started Phase 3d admin polish with `lon recovery show`, `lon recovery rotate`, and
-  `lon passphrase change`: passphrase-authorized recovery-code display/rotation and recovery-material
-  rewrapping from local `recovery.wrapped` material.
+- Completed Phase 3d admin polish with `lon recovery show`, `lon recovery rotate`,
+  `lon passphrase change`, and `lon passphrase reset`: passphrase-authorized recovery-code
+  display/rotation, recovery-material rewrapping, and live-instance escape-hatch reset.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -445,10 +445,13 @@ Added the first Phase 3d admin commands:
 - it rewraps the existing recovery code under the new passphrase without changing the recovery code
 - future backups can reuse the same recovery code with the new passphrase; existing bundle files are not
   rekeyed
-- `--dry-run` previews the prompt/unlock/display steps without reading or printing the secret
+- `lon passphrase reset` confirms that existing bundles are not rekeyed, requires a running/reachable
+  instance, then writes fresh recovery material and prints the new recovery code once
+- `--dry-run` previews the prompt/unlock/display/reset steps without reading or printing the secret
 - `--json` reports admin outcomes without including passphrases or recovery codes in JSON
 
-Remaining Phase 3d admin command: `lon passphrase reset`.
+Phase 3d admin commands are now implemented. The remaining MVP work is final checkpoint polish and release
+readiness review.
 
 ## Verification
 
@@ -473,5 +476,6 @@ Remaining Phase 3d admin command: `lon passphrase reset`.
 
 ## Next phase
 
-Continue Phase 3d admin polish: implement `lon passphrase reset`. Follow-up candidates after the Phase 3
-core loop: persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.
+Run the MVP checkpoint review for Phase 3: docs/readme alignment, final backup→restore smoke notes,
+branch naming cleanup, and release-readiness gaps. Follow-up candidates after the Phase 3 core loop:
+persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.

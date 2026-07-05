@@ -229,6 +229,25 @@ uv run lon --dry-run passphrase change
 rewrites it with the new backup passphrase. Existing bundle files are not rekeyed; each bundle still opens
 with the passphrase or recovery code that was active when that bundle was created.
 
+### `lon passphrase reset`
+
+Reset backup passphrase and recovery material for a running, reachable local instance.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run passphrase reset
+```
+
+`passphrase reset` is the escape hatch for a live instance when both the old backup passphrase and recovery
+code are lost. It requires the n8n container to be running and the web UI to be reachable, then writes fresh
+local `recovery.wrapped` material and prints a new recovery code once. Existing bundle files are not rekeyed
+and remain openable only with the passphrase or recovery code that was active when they were created.
+
 ## Inspection
 
 ### `lon status`
