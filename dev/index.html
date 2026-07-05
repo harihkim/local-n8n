@@ -607,7 +607,7 @@
 
 <h1 id="local-n8n">local-n8n<a class="headerlink" href="#local-n8n" title="Permanent link">&para;</a></h1>
 <p><code>local-n8n</code> provides the <code>lon</code> CLI for running a local, self-hosted n8n instance with encrypted, portable backups.</p>
-<p>The current development release is an alpha. It focuses on the local lifecycle and encrypted portability:</p>
+<p>The current release is an alpha. It focuses on the local lifecycle and encrypted portability:</p>
 <ul>
 <li>create and start an n8n Docker Compose instance</li>
 <li>initialize a new instance with a guided first-run command</li>
@@ -621,10 +621,9 @@
 <li>manage recovery codes and backup passphrases</li>
 </ul>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
-<p>The latest tagged prerelease is <code>v0.1.0a2</code>; it contains the local lifecycle work. The Phase 3
-backup/restore/admin commands in the development docs are unreleased until the next prerelease.</p>
+<p>The latest tagged prerelease is <code>v0.1.0a3</code>; it contains the Phase 3 backup/restore/admin MVP.</p>
 <p>Install the latest tagged prerelease with <code>uv</code>:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 </code></pre></div>
 <p>For development inside a checkout, use:</p>
 <p><code>bash test
@@ -637,7 +636,7 @@ uv run lon --help</code></p>
 <ul>
 <li><code>latest</code> is the default and follows the newest released docs.</li>
 <li><code>dev</code> follows unreleased work on <code>main</code>.</li>
-<li>release versions such as <code>v0.1.0a2</code> remain browsable.</li>
+<li>release versions such as <code>v0.1.0a3</code> remain browsable.</li>
 </ul>
 <p>For normal use, stay on <code>latest</code>.</p>
 
