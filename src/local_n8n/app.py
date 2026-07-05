@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import getpass
 import json as json_lib
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Annotated, Any, NoReturn
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from local_n8n.core.backup import backup_instance
 from local_n8n.core.config import build_instance_config
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, plan_dev_wipe, wipe_dev
 from local_n8n.core.diagnostics import debug, set_verbose
@@ -150,6 +153,33 @@ def _dry_run_payload(
     }
 
 
+def _backup_dry_run_payload(
+    *,
+    instance: str,
+    output: Path | None,
+) -> dict[str, Any]:
+    config = build_instance_config(instance)
+    bundle_path = output or (
+        config.instance_dir.parent.parent / "backups" / f"{instance}-<timestamp>.n8nbundle"
+    )
+    return {
+        "ok": True,
+        "command": "backup",
+        "dry_run": True,
+        "instance": instance,
+        "would": {
+            "confirm_downtime": True,
+            "prompt_passphrase": True,
+            "stop_if_running": True,
+            "capture_volume": config.volume_name,
+            "write_bundle": _path(bundle_path),
+            "write_recovery_material_if_missing": _path(config.instance_dir / "recovery.wrapped"),
+            "record_state": _path(config.instance_dir.parent.parent / "state.db"),
+            "restart_if_was_running": True,
+        },
+    }
+
+
 def _emit_dry_run(payload: dict[str, Any]) -> None:
     if options.json_output:
         _emit_json(payload)
@@ -165,6 +195,25 @@ def _emit_dry_run(payload: dict[str, Any]) -> None:
         console.print(f"[dim]would write: {path}[/dim]")
     if payload["would"]["wait_for_web_ui"]:
         console.print("[dim]would wait for n8n web UI readiness[/dim]")
+
+
+def _emit_backup_dry_run(payload: dict[str, Any]) -> None:
+    if options.json_output:
+        _emit_json(payload)
+        return
+
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: backup[/dim]")
+    console.print(f"[dim]instance: {payload['instance']}[/dim]")
+    console.print("[dim]would ask before stopping n8n[/dim]")
+    console.print("[dim]would prompt for backup passphrase[/dim]")
+    console.print(f"[dim]would capture volume: {payload['would']['capture_volume']}[/dim]")
+    console.print(f"[dim]would write bundle: {payload['would']['write_bundle']}[/dim]")
+    console.print(
+        "[dim]would create recovery material if missing: "
+        f"{payload['would']['write_recovery_material_if_missing']}[/dim]"
+    )
+    console.print("[dim]would restart n8n if it was running before backup[/dim]")
 
 
 def _init_payload(
@@ -329,6 +378,27 @@ def _confirm_image_update(old_image_ref: str, new_image_ref: str) -> bool:
     except EOFError:
         return False
     return answer.strip().lower() not in {"n", "no"}
+
+
+def _confirm_backup() -> bool:
+    if options.assume_yes:
+        return True
+    console.print("[yellow]Backup will briefly stop n8n for a consistent snapshot.[/yellow]")
+    try:
+        answer = console.input("[bold yellow]Continue with backup? (y/N): [/bold yellow]")
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
+def _prompt_backup_passphrase() -> str:
+    first = getpass.getpass("Backup passphrase: ", stream=sys.stderr)
+    second = getpass.getpass("Confirm backup passphrase: ", stream=sys.stderr)
+    if not first:
+        raise UsageError("Backup passphrase cannot be empty.")
+    if first != second:
+        raise UsageError("Backup passphrases did not match.")
+    return first
 
 
 @dev_app.command("wipe")
@@ -553,6 +623,64 @@ def restart(
 
     console.print(f"[green]n8n restarted:[/green] {result.url}")
     _maybe_emit_json({"ok": True, "command": "restart", "instance": instance, "url": result.url})
+
+
+@app.command()
+def backup(
+    instance: Annotated[str, typer.Option("--instance", "-i", help="Instance name.")] = "default",
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Backup bundle path."),
+    ] = None,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Skip downtime confirmation."),
+    ] = False,
+) -> None:
+    """Create an encrypted local backup bundle."""
+    if options.dry_run:
+        try:
+            payload = _backup_dry_run_payload(instance=instance, output=output)
+        except LonError as error:
+            _handle_error(error)
+        _emit_backup_dry_run(payload)
+        return
+
+    if not yes and not _confirm_backup():
+        _handle_error(LonError("Backup cancelled.", hint="Nothing was changed."))
+
+    try:
+        passphrase = _prompt_backup_passphrase()
+        result = backup_instance(
+            instance_name=instance,
+            passphrase=passphrase,
+            output_path=output,
+            progress=_progress,
+        )
+    except LonError as error:
+        _handle_error(error)
+
+    console.print(f"[green]Encrypted backup created:[/green] {result.bundle_path}")
+    console.print(f"[dim]sha256: {result.checksum}[/dim]")
+    console.print(f"[dim]size: {result.size} bytes[/dim]")
+    if result.recovery_code is not None:
+        console.print("[bold yellow]Recovery code created. Store it somewhere safe.[/bold yellow]")
+        console.print(f"[bold yellow]{result.recovery_code}[/bold yellow]")
+        console.print(
+            "[dim]Keep at least one of: a working instance, or an openable backup bundle.[/dim]"
+        )
+    _maybe_emit_json(
+        {
+            "ok": True,
+            "command": "backup",
+            "instance": result.instance,
+            "bundle": _path(result.bundle_path),
+            "checksum": result.checksum,
+            "size": result.size,
+            "recovery_code_created": result.recovery_code is not None,
+            "restarted": result.restarted,
+        }
+    )
 
 
 @app.command()

@@ -46,6 +46,12 @@ backup/restore.
   integration is accepted as a valid backend and explained clearly.
 - Released Phase 2 as GitHub prerelease `v0.1.0a2` with wheel/source artifacts and versioned docs published
   as `latest`.
+- Started Phase 3a with a library-only encrypted bundle core in `core/crypto.py`: deterministic bundle
+  framing, canonical JSON headers, AES-256-GCM payload encryption, Argon2id passphrase/recovery slots, and
+  strict format/authentication errors.
+- Started Phase 3b with `lon backup`: downtime confirmation, passphrase prompt, stop-if-running volume
+  capture, encrypted `.n8nbundle` write, recovery material creation/reuse, backup metadata recording, and
+  restart-in-`finally` behavior.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -330,6 +336,51 @@ so a later `lon dev wipe --images` must still know which built-in n8n image to r
 regression tests for that state-gone image cleanup path, plus CLI coverage that `--images` still prompts
 with default `no` unless the user types `yes` or passes `--yes`.
 
+### Phase 3a crypto core
+
+Added the first Phase 3 slice as a library-only module, with no CLI, Docker, filesystem persistence, or
+backup orchestration yet. `core/crypto.py` implements the `.n8nbundle` envelope framing from `plan.md`:
+
+- `N8NB` magic prefix, 4-byte big-endian header length, canonical JSON header, and AES-GCM
+  `ciphertext || tag` payload
+- fixed constants from the plan: 32-byte DEK, 12-byte nonces, 16-byte salts/tags, Argon2id
+  `t=3, m=65536 KiB, p=4`
+- passphrase and recovery slots, either of which can unwrap the DEK and open the bundle
+- exact payload-length checks so trailing bytes are rejected
+- open path authenticates the exact header bytes as AES-GCM AAD and never re-serializes the header
+- deterministic random injection for tests only
+
+Added unit tests for passphrase/recovery round-trip, wrong secret, header tamper, bad magic, header-magic
+mismatch, unknown format schema, trailing bytes, empty payload rejection, and a deterministic known-answer
+SHA-256 vector.
+
+### Phase 3b backup create path
+
+Added the first backup command path without restore yet:
+
+- `lon backup` asks before downtime unless `--yes` or global `--yes` is used
+- the CLI prompts for a backup passphrase and confirms it
+- the first backup creates `recovery.wrapped` and prints the recovery code once
+- later backups reuse the wrapped recovery material using the backup passphrase
+- if n8n is running, backup stops only the n8n service, captures the volume, then starts n8n again in a
+  `finally` block and waits for the web UI
+- the encrypted bundle payload is a tar archive containing `manifest.json`, `volume.tar`,
+  `docker-compose.yml`, and `.env`
+- `state.db` now includes a `backups` table and records bundle path, checksum, size, timestamp, and version
+  metadata after successful writes
+
+Restore is still pending for Phase 3c. The current bundle payload format is intentionally simple so restore
+can consume it directly in the next slice.
+
+Manual smoke test:
+
+- created isolated instance `backup-smoke` under `LOCAL_N8N_HOME=/tmp/local-n8n-phase3-smoke`
+- ran two real encrypted backups against Docker volume `n8n_backup-smoke_data`
+- verified first backup created a recovery code and second backup reused `recovery.wrapped`
+- opened the second bundle with the recovery code and confirmed the `N8NB` magic/header path works
+- confirmed n8n restarted and `lon status` reported `running` / `reachable`
+- cleaned up the smoke-test container, volume, local state, and temporary bundles
+
 ## Verification
 
 - `uv run --python 3.13 pytest tests`
@@ -353,7 +404,7 @@ with default `no` unless the user types `yes` or passes `--yes`.
 
 ## Next phase
 
-Start Phase 3a: implement `core/crypto.py` as a library-only encrypted bundle core with framing,
-canonical JSON headers, AES-256-GCM payload encryption, Argon2id passphrase/recovery slots, and tamper
-tests. Follow-up candidates after the Phase 3 core loop: persistent diagnostic file logging, `lon update`,
-and user config for `default-image-ref`.
+Continue Phase 3b hardening/manual testing, then move to Phase 3c restore: decrypt bundle, verify manifest,
+restore into a fresh volume, rehydrate `.env`/compose, guard existing instances with `--replace`, and start
+n8n from the restored state. Follow-up candidates after the Phase 3 core loop: persistent diagnostic file
+logging, `lon update`, and user config for `default-image-ref`.

@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from local_n8n.app import app
 from local_n8n.compose.template import DEFAULT_IMAGE_REF, LEGACY_DEFAULT_IMAGE_REFS
+from local_n8n.core.backup import BackupResult
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, DevWipeTarget
 from local_n8n.core.doctor import DoctorCheck
 from local_n8n.core.init import InitResult, plan_init
@@ -293,6 +294,64 @@ def test_cli_init_success_prints_owner_setup_hint(
     assert "local-n8n is ready" in result.stderr
     assert "http://localhost:5688" in result.stderr
     assert "redirects to /setup" in result.stderr
+
+
+def test_cli_backup_dry_run_outputs_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["--dry-run", "backup", "--instance", "preview"])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would ask before stopping n8n" in result.stderr
+    assert "would write bundle" in result.stderr
+
+
+def test_cli_backup_cancels_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["backup"], input="\n")
+
+    assert result.exit_code == 1
+    assert "Backup cancelled" in result.stderr
+
+
+def test_cli_backup_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+
+    def fake_backup_instance(
+        instance_name: str,
+        *,
+        passphrase: str,
+        output_path: Path | None,
+        progress: Callable[[str], None],
+    ) -> BackupResult:
+        assert instance_name == "default"
+        assert passphrase == "backup-passphrase"
+        assert output_path == tmp_path / "manual.n8nbundle"
+        progress("fake backup progress")
+        return BackupResult(
+            instance="default",
+            bundle_path=tmp_path / "manual.n8nbundle",
+            checksum="abc123",
+            size=42,
+            recovery_code="recovery-code",
+            restarted=True,
+        )
+
+    monkeypatch.setattr("local_n8n.app._prompt_backup_passphrase", lambda: "backup-passphrase")
+    monkeypatch.setattr("local_n8n.app.backup_instance", fake_backup_instance)
+
+    result = runner.invoke(
+        app,
+        ["backup", "--yes", "--output", str(tmp_path / "manual.n8nbundle")],
+    )
+
+    assert result.exit_code == 0
+    assert "fake backup progress" in result.stderr
+    assert "Encrypted backup created" in result.stderr
+    assert "Recovery code created" in result.stderr
+    assert "recovery-code" in result.stderr
 
 
 def test_cli_up_prompts_for_legacy_image_update_with_yes_default(

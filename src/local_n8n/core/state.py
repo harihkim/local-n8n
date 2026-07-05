@@ -9,7 +9,7 @@ from typing import Self
 from local_n8n.compose.template import DEFAULT_IMAGE_REF
 from local_n8n.core.config import config_home
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,18 @@ class InstanceRecord:
     base_url: str | None = None
     db_type: str = "sqlite"
     n8n_version: str | None = None
+
+
+@dataclass(frozen=True)
+class BackupRecord:
+    instance: str
+    created_at: str
+    location: Path
+    checksum: str
+    size: int
+    n8n_version: str | None = None
+    remote_id: int | None = None
+    id: int | None = None
 
 
 class StateStore:
@@ -117,6 +129,51 @@ class StateStore:
         )
         self._conn.commit()
 
+    def record_backup(self, record: BackupRecord) -> int:
+        cursor = self._conn.execute(
+            """
+            INSERT INTO backups (
+                instance, created_at, location, remote_id, checksum, size, n8n_version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record.instance,
+                record.created_at,
+                str(record.location),
+                record.remote_id,
+                record.checksum,
+                record.size,
+                record.n8n_version,
+            ),
+        )
+        self._conn.commit()
+        backup_id = cursor.lastrowid
+        if backup_id is None:
+            raise RuntimeError("SQLite did not return a backup id")
+        return backup_id
+
+    def list_backups(self, instance: str | None = None) -> list[BackupRecord]:
+        if instance is None:
+            rows = self._conn.execute(
+                """
+                SELECT id, instance, created_at, location, remote_id, checksum, size, n8n_version
+                FROM backups
+                ORDER BY created_at DESC, id DESC
+                """
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """
+                SELECT id, instance, created_at, location, remote_id, checksum, size, n8n_version
+                FROM backups
+                WHERE instance = ?
+                ORDER BY created_at DESC, id DESC
+                """,
+                (instance,),
+            ).fetchall()
+        return [_row_to_backup(row) for row in rows]
+
     def _migrate(self) -> None:
         self._conn.execute(
             """
@@ -132,6 +189,20 @@ class StateStore:
               enc_key_ref TEXT NOT NULL,
               created_at TEXT NOT NULL,
               last_started_at TEXT
+            )
+            """
+        )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS backups (
+              id INTEGER PRIMARY KEY,
+              instance TEXT NOT NULL REFERENCES instances(name),
+              created_at TEXT NOT NULL,
+              location TEXT NOT NULL,
+              remote_id INTEGER,
+              checksum TEXT NOT NULL,
+              size INTEGER NOT NULL,
+              n8n_version TEXT
             )
             """
         )
@@ -180,4 +251,17 @@ def _row_to_instance(row: sqlite3.Row) -> InstanceRecord:
         enc_key_ref=Path(row["enc_key_ref"]),
         created_at=row["created_at"],
         last_started_at=row["last_started_at"],
+    )
+
+
+def _row_to_backup(row: sqlite3.Row) -> BackupRecord:
+    return BackupRecord(
+        id=row["id"],
+        instance=row["instance"],
+        created_at=row["created_at"],
+        location=Path(row["location"]),
+        remote_id=row["remote_id"],
+        checksum=row["checksum"],
+        size=row["size"],
+        n8n_version=row["n8n_version"],
     )

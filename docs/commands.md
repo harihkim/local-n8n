@@ -125,6 +125,30 @@ Options:
 
 If the container is not present, `restart` fails fast and suggests `lon up`.
 
+## Portability
+
+### `lon backup`
+
+Create an encrypted local `.n8nbundle` for a registered instance.
+
+Options:
+
+- `--instance`, `-i`: instance name. Default: `default`.
+- `--output`, `-o`: backup bundle path. Default: `$LOCAL_N8N_HOME/backups/<instance>-<timestamp>.n8nbundle`.
+- `--yes`, `-y`: skip the downtime confirmation prompt.
+
+Safe preview:
+
+```bash test
+uv run lon --dry-run backup --instance preview
+```
+
+`backup` briefly stops n8n if the container is running, captures the Docker volume, writes an encrypted
+bundle, records backup metadata in `state.db`, and then starts n8n again if it was running before.
+
+The first backup creates local recovery material and prints a recovery code once. Store that code somewhere
+safe; future backups reuse the local wrapped recovery material.
+
 ## Inspection
 
 ### `lon status`
