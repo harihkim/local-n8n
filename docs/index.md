@@ -2,7 +2,7 @@
 
 `local-n8n` provides the `lon` CLI for running a local, self-hosted n8n instance with encrypted, portable backups.
 
-The current development release is an alpha. It focuses on the local lifecycle and encrypted portability:
+The current release is an alpha. It focuses on the local lifecycle and encrypted portability:
 
 - create and start an n8n Docker Compose instance
 - initialize a new instance with a guided first-run command
@@ -17,13 +17,12 @@ The current development release is an alpha. It focuses on the local lifecycle a
 
 ## Install
 
-The latest tagged prerelease is `v0.1.0a2`; it contains the local lifecycle work. The Phase 3
-backup/restore/admin commands in the development docs are unreleased until the next prerelease.
+The latest tagged prerelease is `v0.1.0a3`; it contains the Phase 3 backup/restore/admin MVP.
 
 Install the latest tagged prerelease with `uv`:
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 ```
 
 For development inside a checkout, use:
@@ -44,6 +43,6 @@ The documentation site is versioned:
 
 - `latest` is the default and follows the newest released docs.
 - `dev` follows unreleased work on `main`.
-- release versions such as `v0.1.0a2` remain browsable.
+- release versions such as `v0.1.0a3` remain browsable.
 
 For normal use, stay on `latest`.

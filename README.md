@@ -2,7 +2,7 @@
 
 `lon` is a CLI for running a local self-hosted n8n instance with encrypted, portable backups.
 
-The current development branch includes the Phase 3 portability loop: guided init, Docker Compose
+The current alpha includes the Phase 3 portability loop: guided init, Docker Compose
 management, instance state, diagnostics, encrypted backup/restore, and recovery/passphrase admin commands.
 It does not automatically install Docker, manage Windows bootstrap, configure tunnels, or publish remotes.
 
@@ -18,14 +18,12 @@ On Windows, develop and run the CLI inside WSL Ubuntu. Automatic WSL/Docker prov
 
 ## Install from GitHub
 
-The latest tagged prerelease is `v0.1.0a2`; it contains the local lifecycle work. The Phase 3
-backup/restore/admin commands described below are currently on the development branch and will be included
-in a later prerelease.
+The latest tagged prerelease is `v0.1.0a3`; it contains the Phase 3 backup/restore/admin MVP.
 
 Install the latest tagged prerelease with:
 
 ```bash
-uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a2
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 ```
 
 For development inside this checkout, keep using `uv run lon ...`.

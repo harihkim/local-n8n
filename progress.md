@@ -2,8 +2,8 @@
 
 ## Current phase
 
-Phase 2 is released as `v0.1.0a2`. Phase 3 backup/restore/admin work is implemented on the development
-branch and is in MVP checkpoint review.
+Phase 3 backup/restore/admin MVP is merged to `main` and being released as GitHub prerelease
+`v0.1.0a3`.
 
 ## Implemented
 
