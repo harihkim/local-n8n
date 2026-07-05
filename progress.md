@@ -463,10 +463,11 @@ Started the Phase 3 checkpoint review:
   change/reset, and restored recovery-material behavior
 - clarified that PyPI publishing waits for Phase 3 checkpoint review rather than the older generic
   backup/restore stability milestone
+- quieted Docker Compose's restore warning for pre-created generation volumes by rendering restored volumes
+  as externally managed Compose volumes
 
 Remaining release-readiness gaps:
 
-- decide whether to quiet or document Docker Compose's warning about pre-created restore generation volumes
 - decide release version/tag strategy for the Phase 3 prerelease after review
 
 Manual release-candidate smoke pass:

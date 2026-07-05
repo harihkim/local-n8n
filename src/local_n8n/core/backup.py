@@ -243,6 +243,7 @@ def restore_instance(
                 restored_port,
                 data_volume=volume_name,
                 image_ref=image_ref,
+                external_volume=True,
             )
             restored_config = config
             _report(progress, "Restoring instance files...")

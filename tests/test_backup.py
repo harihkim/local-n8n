@@ -388,6 +388,9 @@ def test_restore_instance_restores_bundle_to_new_instance(
     assert (tmp_path / "instances" / "restored" / ".env").read_text(encoding="utf-8").splitlines()[
         1
     ] == "N8N_PORT=5691"
+    assert "external: true" in (
+        tmp_path / "instances" / "restored" / "docker-compose.yml"
+    ).read_text(encoding="utf-8")
     assert any(command[:3] == ["docker", "volume", "create"] for command in calls)
     assert any(command[:2] == ["docker", "run"] for command in calls)
     assert any(command[-2:] == ["up", "-d"] for command in calls)
