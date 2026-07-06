@@ -1,151 +1,202 @@
 # local-n8n (`lon`)
 
-`lon` is a CLI for running a local self-hosted n8n instance with encrypted, portable backups.
+`local-n8n` provides the `lon` CLI for running a local, self-hosted n8n instance with encrypted,
+portable backups.
 
-The current alpha includes the Phase 3 portability loop: guided init, Docker Compose
-management, instance state, diagnostics, encrypted backup/restore, and recovery/passphrase admin commands.
-It does not automatically install Docker, manage Windows bootstrap, configure tunnels, or publish remotes.
+The project is in alpha. The current prerelease focuses on the local lifecycle and encrypted portability:
+create an n8n Docker Compose instance, manage it from the terminal, back it up into an encrypted
+`.n8nbundle`, and restore it on another machine.
 
-Documentation:
+## Documentation
 
 - [Latest docs](https://harihkim.github.io/local-n8n/latest/)
-- [Release process and public repository checklist](https://harihkim.github.io/local-n8n/latest/release/)
+- [Quickstart](https://harihkim.github.io/local-n8n/latest/quickstart/)
+- [Command reference](https://harihkim.github.io/local-n8n/latest/commands/)
+- [Troubleshooting](https://harihkim.github.io/local-n8n/latest/troubleshooting/)
 
-Until GitHub Pages is enabled for the public repository, the same docs are available in [`docs/`](docs/).
+If GitHub Pages is not enabled yet, the same documentation is available in [`docs/`](docs/).
+
+## Status
+
+Latest prerelease: `v0.1.0a3`
+
+Included today:
+
+- guided first run with `lon init`
+- Docker Compose lifecycle commands: `up`, `down`, `stop`, `start`, and `restart`
+- instance inspection with `status`, `list`, `logs`, `open`, and `doctor`
+- encrypted backup and restore with `.n8nbundle` files
+- recovery-code and backup-passphrase admin commands
+- JSON, dry-run, yes, verbose, and persistent diagnostic log support
+
+Not included yet:
+
+- automatic Docker or WSL installation
+- hosted sync or a managed backend
+- tunnel/public webhook setup
+- remote backup targets
+- PyPI publishing
 
 ## Requirements
 
 - Python 3.13
-- `uv`
-- Docker Engine available in the development environment
+- [`uv`](https://docs.astral.sh/uv/)
+- Docker Engine or Docker Desktop with a working `docker compose`
 
-On Windows, develop and run the CLI inside WSL Ubuntu. Automatic WSL/Docker provisioning is post-MVP.
+On Windows, run `lon` inside WSL Ubuntu with Docker available to that distro.
 
-## Install from GitHub
+## Install
 
-The latest tagged prerelease is `v0.1.0a3`; it contains the Phase 3 backup/restore/admin MVP.
-
-Install the latest tagged prerelease with:
+Install the latest GitHub prerelease with `uv`:
 
 ```bash
 uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 ```
 
-For development inside this checkout, keep using `uv run lon ...`.
-
-## Usage
+For development inside this checkout:
 
 ```bash
-uv run lon init
-uv run lon up
-uv run lon stop
-uv run lon down
+uv run lon --help
 ```
 
-The local lifecycle also includes:
+## Quickstart
+
+Create and start the default local n8n instance:
 
 ```bash
-uv run lon status
-uv run lon list
-uv run lon logs
-uv run lon start
-uv run lon restart
-uv run lon open
-uv run lon doctor
+lon init
 ```
 
-Lifecycle semantics:
-
-- `lon init`: guided first run; check Docker prerequisites, create/register/start the instance, and explain
-  the n8n local owner setup step.
-- `lon up`: create or recreate the Compose container and start n8n.
-- `lon list`: list registered instances with URL, container status, and volume.
-- `lon stop`: stop the existing container but keep it present, so `lon start` can resume it.
-- `lon start`: start an existing stopped container; if `lon down` removed it, use `lon up`.
-- `lon restart`: restart an existing container; if `lon down` removed it, use `lon up`.
-- `lon down`: remove the container/network but keep the Docker data volume.
-
-Encrypted portability:
+Inspect it:
 
 ```bash
-uv run lon backup
-uv run lon restore /path/to/default-2026-07-05T12-00-00Z.n8nbundle
-uv run lon recovery show
-uv run lon recovery rotate
-uv run lon passphrase change
-uv run lon passphrase reset
+lon status
+lon logs
+lon open
 ```
 
-- `lon backup`: briefly stops n8n for a consistent Docker-volume snapshot, writes an encrypted
-  `.n8nbundle`, and restarts n8n if it was running.
-- First backup prints a recovery code once and writes local `recovery.wrapped` material for future backups.
-- `lon restore`: decrypts with either the backup passphrase or recovery code, restores into a fresh Docker
-  volume, writes restored instance files, registers state, starts n8n, and waits for readiness.
-- Recovery and passphrase admin commands manage local recovery material. Existing bundles are never rekeyed
-  by rotate/change/reset; they remain tied to the unlock material active when they were created.
-
-`lon init` writes instance files under `~/.config/local-n8n/instances/default/` unless
-`LOCAL_N8N_HOME` is set. It generates `.env` once, stores a fixed `N8N_ENCRYPTION_KEY`, sets the file to
-mode `0600`, and does not overwrite that key on later runs.
-
-`lon` records instances and backup metadata in `~/.config/local-n8n/state.db`. Existing Phase 0 instance
-files are adopted without overwriting `.env`.
-
-Use `--verbose` before the command for diagnostic output:
+Stop or remove the container while keeping the Docker data volume:
 
 ```bash
-uv run lon --verbose status --instance default
+lon stop
+lon start
+lon down
+lon up
 ```
 
-Every `lon` invocation also writes a persistent diagnostic log under
-`~/.config/local-n8n/logs/`, or `$LOCAL_N8N_HOME/logs/` when that environment variable is set. Error
-messages include the exact log path. Logs record command metadata, progress, and friendly errors without
-copying typed passphrases or recovery codes from terminal output.
-
-Phase 1b global flags:
+Create an encrypted backup:
 
 ```bash
-uv run lon --json status --instance default
-uv run lon --dry-run up --instance preview --port 5688
-uv run lon --yes status
+lon backup
 ```
 
-- `--json` emits a single JSON object to stdout for finite commands; human output remains on stderr.
-- `--dry-run` shows the planned action for mutating commands without writing files, changing state, opening
-  browsers, or running Docker.
-- `--yes` is accepted globally for confirmation prompts where supported.
+Restore from a backup bundle:
 
-Development-only reset:
+```bash
+lon restore /path/to/default-2026-07-05T12-00-00Z.n8nbundle
+```
+
+## Encrypted Backups
+
+`lon backup` briefly stops n8n for a consistent Docker-volume snapshot, writes an encrypted
+`.n8nbundle`, and restarts n8n if it was running before.
+
+The first backup asks for a backup passphrase and prints a recovery code once. Future backups reuse local
+`recovery.wrapped` material so they do not create a new recovery code unless you rotate or reset recovery
+material explicitly.
+
+Useful admin commands:
+
+```bash
+lon recovery show
+lon recovery rotate
+lon passphrase change
+lon passphrase reset
+```
+
+Existing backup bundles are never rekeyed by rotate/change/reset. Each bundle remains tied to the unlock
+material that was active when it was created.
+
+## Files and Logs
+
+By default, `lon` stores local state under:
+
+```text
+~/.config/local-n8n/
+```
+
+Important paths:
+
+- `instances/<name>/docker-compose.yml`
+- `instances/<name>/.env`
+- `instances/<name>/recovery.wrapped`
+- `state.db`
+- `backups/`
+- `logs/`
+
+Set `LOCAL_N8N_HOME` to use a different local data directory.
+
+Every `lon` invocation writes a diagnostic log under `~/.config/local-n8n/logs/`, or
+`$LOCAL_N8N_HOME/logs/` when that environment variable is set. Error messages include the exact log path.
+Logs record command metadata, progress, and friendly errors without copying typed passphrases or recovery
+codes from terminal output.
+
+## Script-Friendly Flags
+
+Global flags must be placed before the command:
+
+```bash
+lon --json status
+lon --dry-run up --instance preview --port 5688
+lon --verbose status
+lon backup --yes
+```
+
+- `--json` emits one JSON object to stdout for finite commands.
+- `--dry-run` previews mutating commands without changing instance files, state, Docker, or browsers.
+- `--yes` skips supported confirmation prompts. Some commands, such as `backup`, also expose a
+  command-local `--yes`.
+- `--verbose` also prints diagnostic details to stderr.
+
+## Development
+
+Run checks locally:
+
+```bash
+uv run pytest tests
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check
+uv run pyrefly check
+uv run mkdocs build --strict
+```
+
+Development-only cleanup:
 
 ```bash
 uv run lon --dry-run dev wipe
-uv run lon --dry-run dev wipe --images
 uv run lon dev wipe
 ```
 
-`dev wipe` removes local-n8n containers, volumes, instance files, and state for development clean-slate
-testing. For real deletion, it warns and asks you to type `yes`; pressing Enter keeps the default `no`.
-Pass `--images` to also remove known local-n8n Docker images, including the current built-in n8n image.
-Use `--yes` only for development automation.
+`dev wipe` removes local-n8n containers, volumes, instance files, and state for clean-slate testing. It
+asks you to type `yes` before real deletion. Pass `--images` to also remove known local-n8n Docker images.
 
-## Release process
+## Release and Docs
 
-CI runs lint, format check, `ty`, Pyrefly, tests, and docs build on pushes and pull requests. Pushing a
-`v*` tag builds the wheel/source distribution and creates a GitHub prerelease with those artifacts attached.
-PyPI publishing is intentionally deferred until the Phase 3 MVP checkpoint is reviewed.
+GitHub prereleases are created from `v*` tags. The release workflow runs lint, format check, type checks,
+tests, docs build, builds the wheel/source distribution, and attaches those artifacts to a GitHub
+prerelease.
 
-The documentation site is built with MkDocs Material and published with versioned URLs. The default docs
-version is `latest`, with `dev` available for unreleased work on `main`. GitHub Pages should be enabled
-from the `gh-pages` branch after the repository is made public.
+Docs are built with MkDocs Material and versioned with `mike`. The public docs site should be served from
+the `gh-pages` branch once GitHub Pages is enabled for the public repository.
 
-The default n8n image follows n8n's official stable Docker image:
+PyPI publishing is intentionally deferred while early alpha releases are validated through GitHub
+prereleases.
 
-```text
-docker.n8n.io/n8nio/n8n
-```
+## Security Notes
 
-Instances that still have the earlier built-in `1.113.3` image pin recorded in local state are prompted to
-move to this stable image reference on the next `lon up` or `lon init`. Press Enter to accept the default
-`yes`, or type `n` to keep the existing image. Custom image references are left unchanged.
+`local-n8n` does not host your data. n8n data lives in your local Docker volume, and backup bundles are
+encrypted before being written to disk.
 
-An explicit `lon update` command and user-selectable image/version settings remain planned follow-ups.
+Do not commit generated `.env` files, `state.db`, `recovery.wrapped`, diagnostic logs, or `.n8nbundle`
+files. The repository ignores those runtime artifacts by default.

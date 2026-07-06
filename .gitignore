@@ -26,6 +26,7 @@ site/
 *.egg-info/
 
 # local-n8n runtime artifacts
+/plan.md
 *.n8nbundle
 state.db
 state.db-*
