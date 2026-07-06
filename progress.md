@@ -74,6 +74,8 @@ publishing is gated on completing Phase 4 with validated Linux, macOS, and Windo
   integration by default while preserving direct Docker Engine inside WSL as an explicit advanced choice.
 - Added a Windows PowerShell `scripts/lon.ps1` launcher so users can run `lon` from PowerShell while the
   launcher executes the real command inside WSL.
+- Added `scripts/install-windows-launcher.ps1` to install a user-local `lon` command on Windows, so normal
+  PowerShell usage can be `lon init`, `lon doctor`, and other direct CLI commands.
 - Added a manual PyPI/TestPyPI publishing workflow using PyPI Trusted Publishing; first real publish is
   deferred until Phase 4 completes and Linux, macOS, and Windows prerequisite support is validated.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -537,6 +539,8 @@ Manual release-candidate smoke pass:
   as the recommended default and direct Docker Engine inside WSL as an explicit advanced choice.
 - Windows UX follow-up adds a PowerShell launcher so normal operation can stay in Windows PowerShell instead
   of asking users to type routine commands in an Ubuntu shell.
+- Windows UX follow-up now installs a user-local `lon.cmd` shim so users can type plain `lon init` from
+  PowerShell while the command still executes safely inside WSL.
 - Windows manual validation passed from WSL Ubuntu with Docker Desktop integration active: `docker info`
   reported `Operating System: Docker Desktop` / `Name: docker-desktop`, `docker compose version` reported
   `v5.1.4`, and `uv run lon doctor` passed Platform, Docker CLI, Docker daemon, Docker backend, Docker

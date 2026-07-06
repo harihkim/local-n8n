@@ -4,6 +4,14 @@ On Windows, use PowerShell as the main interface. `local-n8n` still runs the Lin
 Ubuntu, but the Windows launcher handles that bridge so you do not need to type routine commands in an
 Ubuntu shell.
 
+The intended Windows command is still:
+
+```powershell
+lon init
+```
+
+The Windows installer below creates that command by installing a small `lon.cmd` shim on your user PATH.
+
 ## Recommended Path
 
 For most users, use Docker Desktop with WSL integration:
@@ -13,7 +21,8 @@ For most users, use Docker Desktop with WSL integration:
 3. Start Docker Desktop.
 4. Enable the WSL 2 based engine.
 5. Enable Docker Desktop WSL integration for the Ubuntu distro.
-6. From PowerShell, run `.\scripts\lon.ps1 -UseRepo doctor`.
+6. Install the Windows `lon` command with `.\scripts\install-windows-launcher.ps1`.
+7. From PowerShell, run `lon doctor`.
 
 This keeps Docker daemon management on the Windows side while `lon` and n8n project files stay in Linux.
 The PowerShell launcher runs `lon` inside WSL for you.
@@ -25,11 +34,11 @@ Advanced users can install Docker Engine directly inside WSL instead of using Do
 Do not use both Docker Desktop WSL integration and a separate Docker Engine inside the same WSL distro at
 the same time.
 
-From PowerShell, run the install/repair commands through the Windows launcher:
+From PowerShell, run the install/repair commands through the installed Windows `lon` command:
 
 ```powershell
-.\scripts\lon.ps1 -UseRepo --dry-run doctor --fix
-.\scripts\lon.ps1 -UseRepo doctor --fix
+lon --dry-run doctor --fix
+lon doctor --fix
 ```
 
 ## Bootstrap Helper
@@ -43,6 +52,15 @@ From Windows PowerShell at the repository root:
 ```
 
 The default mode prepares WSL Ubuntu and prints the Docker Desktop WSL integration steps.
+
+Then install the Windows `lon` command:
+
+```powershell
+.\scripts\install-windows-launcher.ps1
+```
+
+That installs a user-local `lon.cmd` shim under `%LOCALAPPDATA%\Programs\local-n8n\bin` and adds that
+directory to your user PATH.
 
 To choose direct Docker Engine inside WSL:
 
@@ -61,10 +79,10 @@ To preview actions without changing WSL state:
 From PowerShell, verify the `lon` view of Docker:
 
 ```powershell
-.\scripts\lon.ps1 -UseRepo doctor
+lon doctor
 ```
 
-That command runs `uv run lon doctor` inside WSL from this checkout.
+In repository mode, that command runs `uv run lon doctor` inside WSL from this checkout.
 
 If you need lower-level Docker details, you can still use Ubuntu directly:
 
@@ -81,14 +99,13 @@ If `lon doctor` reports Docker Desktop WSL integration as active, that is a supp
 From PowerShell at the repository root:
 
 ```powershell
-.\scripts\lon.ps1 -UseRepo init
-.\scripts\lon.ps1 -UseRepo status
-.\scripts\lon.ps1 -UseRepo backup
+lon init
+lon status
+lon backup
 ```
 
-After `local-n8n` is installed inside WSL as a normal tool, omit `-UseRepo`:
+The lower-level launcher is still available for development:
 
 ```powershell
-.\scripts\lon.ps1 doctor
-.\scripts\lon.ps1 init
+.\scripts\lon.ps1 -UseRepo doctor
 ```

@@ -5,8 +5,8 @@ This guide assumes Linux or WSL with Python 3.13 and `uv` available.
 `lon doctor` detects prerequisite problems. `lon --dry-run doctor --fix` previews supported Docker repair
 steps, and `lon doctor --fix` can run supported Linux/WSL fixes after confirmation.
 
-On Windows, start with the [Windows setup guide](windows.md), then run `lon` from PowerShell through the
-WSL launcher.
+On Windows, start with the [Windows setup guide](windows.md), install the Windows launcher, then run `lon`
+from PowerShell.
 
 ## 1. Install
 
