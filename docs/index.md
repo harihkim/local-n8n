@@ -25,8 +25,8 @@ Install the latest tagged prerelease with `uv`:
 uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 ```
 
-PyPI publishing is prepared but not active for end users until the first Trusted Publishing release is
-completed.
+PyPI publishing is prepared but not active for end users until Phase 4 is complete and Linux, macOS, and
+Windows prerequisite support has been validated.
 
 For development inside a checkout, use:
 

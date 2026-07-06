@@ -53,8 +53,8 @@ Install the latest GitHub prerelease with `uv`:
 uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 ```
 
-PyPI publishing is prepared but not enabled for users until the first Trusted Publishing release is
-completed.
+PyPI publishing is prepared but not enabled for users until Phase 4 is complete and Linux, macOS, and
+Windows prerequisite support has been validated.
 
 For development inside this checkout:
 
@@ -193,7 +193,8 @@ tests, docs build, builds the wheel/source distribution, and attaches those arti
 prerelease.
 
 PyPI/TestPyPI publishing uses PyPI Trusted Publishing and the manual `Publish Python Package` workflow.
-Publish to TestPyPI first, then PyPI after an install smoke test.
+The first package publish is gated on Phase 4 completion and validated Linux, macOS, and Windows support.
+When that gate is met, publish to TestPyPI first, then PyPI after an install smoke test.
 
 Docs are built with MkDocs Material and versioned with `mike`. The public docs site is served from the
 `gh-pages` branch.

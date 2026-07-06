@@ -2,8 +2,8 @@
 
 `local-n8n` publishes GitHub prereleases and is prepared for PyPI/TestPyPI trusted publishing.
 
-PyPI publishing is intentionally manual until the Trusted Publisher configuration is set up and a release
-candidate has been validated.
+PyPI publishing is intentionally manual and deferred until Phase 4 is complete with validated Linux, macOS,
+and Windows prerequisite support.
 
 ## Package Release
 
@@ -36,9 +36,10 @@ Before publishing for the first time:
    - repository name: `local-n8n`
    - workflow filename: `publish-pypi.yml`
    - environment: `testpypi` for TestPyPI, `pypi` for PyPI
-3. Run the `Publish Python Package` workflow manually.
-4. Publish to `testpypi` first.
-5. After the TestPyPI install smoke passes, publish to `pypi`.
+3. Finish Phase 4 and validate prerequisite support on Linux, macOS, and Windows.
+4. Run the `Publish Python Package` workflow manually.
+5. Publish to `testpypi` first.
+6. After the TestPyPI install smoke passes, publish to `pypi`.
 
 TestPyPI install smoke:
 

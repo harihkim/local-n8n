@@ -6,7 +6,8 @@ Phase 3 backup/restore/admin MVP is released as GitHub prerelease `v0.1.0a3`.
 
 Phase 4 prerequisite automation is in progress: `lon --dry-run doctor --fix` previews Docker prerequisite
 fixes, and `lon doctor --fix` can now run supported executable fixes with confirmation. Release
-infrastructure now also has a manual PyPI/TestPyPI Trusted Publishing workflow ready for setup.
+infrastructure now also has a manual PyPI/TestPyPI Trusted Publishing workflow ready for setup; first package
+publishing is gated on completing Phase 4 with validated Linux, macOS, and Windows support.
 
 ## Implemented
 
@@ -67,8 +68,8 @@ infrastructure now also has a manual PyPI/TestPyPI Trusted Publishing workflow r
   `$LOCAL_N8N_HOME/logs/`) with command metadata, progress, friendly errors, and internal diagnostics.
 - Started Phase 4 with a bootstrap planning layer and `lon doctor --fix`: dry-run previews Docker
   prerequisite fixes, while non-dry-run can execute supported repair commands after confirmation.
-- Added a manual PyPI/TestPyPI publishing workflow using PyPI Trusted Publishing; first real publish still
-  requires configuring Trusted Publishers on TestPyPI/PyPI.
+- Added a manual PyPI/TestPyPI publishing workflow using PyPI Trusted Publishing; first real publish is
+  deferred until Phase 4 completes and Linux, macOS, and Windows prerequisite support is validated.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
