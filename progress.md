@@ -2,8 +2,10 @@
 
 ## Current phase
 
-Phase 3 backup/restore/admin MVP is merged to `main` and being released as GitHub prerelease
-`v0.1.0a3`.
+Phase 3 backup/restore/admin MVP is released as GitHub prerelease `v0.1.0a3`.
+
+Phase 3-to-Phase 4 hardening has started with persistent diagnostic file logging and public repository
+readiness planning.
 
 ## Implemented
 
@@ -60,6 +62,8 @@ Phase 3 backup/restore/admin MVP is merged to `main` and being released as GitHu
   display/rotation, recovery-material rewrapping, and live-instance escape-hatch reset.
 - Added development-only `lon dev wipe` to remove local-n8n Docker resources, instance files, and state
   during clean-slate testing, with optional image removal through `--images`.
+- Added persistent per-invocation diagnostic logs under `~/.config/local-n8n/logs/` (or
+  `$LOCAL_N8N_HOME/logs/`) with command metadata, progress, friendly errors, and internal diagnostics.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -509,8 +513,9 @@ Manual release-candidate smoke pass:
 - `lon down` removes the container/network but keeps the volume; `lon stop` keeps the container present.
 - `doctor` is intentionally read-only. It reports problems and hints, but does not install or change anything.
 
-## Next phase
+## Between Phase 3 and Phase 4
 
-Run the MVP checkpoint review for Phase 3: docs/readme alignment, final backup→restore smoke notes,
-branch naming cleanup, and release-readiness gaps. Follow-up candidates after the Phase 3 core loop:
-persistent diagnostic file logging, `lon update`, and user config for `default-image-ref`.
+- Land persistent diagnostic file logging so Docker, backup, and restore failures leave a useful local trail.
+- Prepare the repository to become public: audit for committed secrets/generated artifacts, enable GitHub
+  Pages once the repo/plan supports it, and verify the public docs URL returns HTTP 200.
+- Next follow-up candidates before or during Phase 4: `lon update` and user config for `default-image-ref`.

@@ -31,6 +31,7 @@ def run(args: list[str], cwd: Path) -> CommandResult:
         capture_output=True,
         text=True,
     )
+    debug(f"command exited returncode={completed.returncode}: {' '.join(args)}")
     return CommandResult(
         args=args,
         returncode=completed.returncode,
@@ -68,6 +69,7 @@ def _run_streaming_plain(args: list[str], cwd: Path) -> CommandResult:
         _write_stderr(chunk)
 
     returncode = process.wait()
+    debug(f"streaming command exited returncode={returncode}: {' '.join(args)}")
     combined = output.decode("utf-8", errors="replace")
     return CommandResult(
         args=args,
@@ -118,6 +120,7 @@ def _run_streaming_with_pty(args: list[str], cwd: Path) -> CommandResult:
         os.close(master_fd)
 
     returncode = process.wait()
+    debug(f"streaming command exited returncode={returncode}: {' '.join(args)}")
     combined = output.decode("utf-8", errors="replace")
     return CommandResult(
         args=args,

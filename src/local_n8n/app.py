@@ -11,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from local_n8n.core import diagnostics
 from local_n8n.core.backup import (
     backup_instance,
     change_backup_passphrase,
@@ -19,9 +20,9 @@ from local_n8n.core.backup import (
     reveal_recovery_code,
     rotate_recovery_code,
 )
-from local_n8n.core.config import build_instance_config
+from local_n8n.core.config import build_instance_config, config_home
 from local_n8n.core.dev import DevWipePlan, DevWipeResult, plan_dev_wipe, wipe_dev
-from local_n8n.core.diagnostics import debug, set_verbose
+from local_n8n.core.diagnostics import debug, info, set_verbose, start_log
 from local_n8n.core.doctor import run_doctor
 from local_n8n.core.errors import LonError, UsageError
 from local_n8n.core.init import InitPlan, InitResult, init_instance, plan_init
@@ -86,7 +87,11 @@ def app_options(
     options.dry_run = dry_run
     options.assume_yes = yes
     set_verbose(verbose)
-    debug("verbose diagnostics enabled")
+    start_log(config_home(), sys.argv)
+    if verbose:
+        debug("verbose diagnostics enabled")
+    else:
+        debug("verbose diagnostics disabled")
 
 
 def _emit_json(payload: dict[str, Any]) -> None:
@@ -99,9 +104,14 @@ def _maybe_emit_json(payload: dict[str, Any]) -> None:
 
 
 def _handle_error(error: LonError) -> NoReturn:
+    diagnostics.error(f"{error.message} exit_code={error.exit_code}")
+    if error.hint:
+        diagnostics.error(f"hint: {error.hint}")
     console.print(f"[bold red]Error:[/bold red] {error.message}")
     if error.hint:
         console.print(f"[dim]{error.hint}[/dim]")
+    if diagnostics.log_path() is not None:
+        console.print(f"[dim]Diagnostic log: {diagnostics.log_path()}[/dim]")
     _maybe_emit_json(
         {
             "ok": False,
@@ -116,6 +126,7 @@ def _handle_error(error: LonError) -> NoReturn:
 
 
 def _progress(message: str) -> None:
+    info(f"progress: {message}")
     console.print(f"[cyan]{message}[/cyan]")
 
 
@@ -1122,7 +1133,7 @@ def status(
     instance: str = typer.Option("default", "--instance", "-i", help="Instance name."),
 ) -> None:
     """Show the registered instance and Docker container status."""
-    console.print("[cyan]Checking n8n status...[/cyan]")
+    _progress("Checking n8n status...")
     try:
         result = status_instance(instance_name=instance)
     except LonError as error:
@@ -1154,7 +1165,7 @@ def status(
 @app.command("list")
 def list_command() -> None:
     """List registered local-n8n instances."""
-    console.print("[cyan]Listing local-n8n instances...[/cyan]")
+    _progress("Listing local-n8n instances...")
     try:
         results = list_instances()
     except LonError as error:
@@ -1206,7 +1217,7 @@ def logs(
             )
         )
 
-    console.print("[cyan]Fetching n8n logs...[/cyan]")
+    _progress("Fetching n8n logs...")
     try:
         result = logs_instance(instance_name=instance, follow=follow, tail=tail)
     except LonError as error:

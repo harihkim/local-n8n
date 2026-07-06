@@ -50,3 +50,16 @@ Expected public URL:
 ```text
 https://harihkim.github.io/local-n8n/
 ```
+
+## Public Repository Readiness
+
+The `gh-pages` branch can be updated while the repository is private, but the public GitHub Pages URL may
+remain unavailable until the repository is public or Pages is supported by the repository's GitHub plan.
+
+Before making the repository public:
+
+- confirm no local secrets, recovery codes, generated bundles, `.env` files, or private logs are committed
+- confirm release artifacts and install instructions point at the intended public repository
+- enable GitHub Pages from the `gh-pages` branch
+- verify `https://harihkim.github.io/local-n8n/` and the `latest` docs alias return HTTP 200
+- keep early releases marked as prereleases until public feedback validates the alpha flow

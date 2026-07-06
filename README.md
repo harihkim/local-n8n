@@ -92,6 +92,11 @@ Use `--verbose` before the command for diagnostic output:
 uv run lon --verbose status --instance default
 ```
 
+Every `lon` invocation also writes a persistent diagnostic log under
+`~/.config/local-n8n/logs/`, or `$LOCAL_N8N_HOME/logs/` when that environment variable is set. Error
+messages include the exact log path. Logs record command metadata, progress, and friendly errors without
+copying typed passphrases or recovery codes from terminal output.
+
 Phase 1b global flags:
 
 ```bash

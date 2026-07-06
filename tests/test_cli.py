@@ -25,6 +25,12 @@ def _patch_compose_runners(monkeypatch: pytest.MonkeyPatch, fake_run: ComposeRun
     monkeypatch.setattr("local_n8n.core.instance.run_streaming", fake_run)
 
 
+def _latest_log(home: Path) -> Path:
+    logs = sorted((home / "logs").glob("lon-*.log"))
+    assert logs
+    return logs[-1]
+
+
 def test_cli_up_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
 
@@ -181,6 +187,29 @@ def test_cli_verbose_prints_diagnostics(tmp_path: Path, monkeypatch: pytest.Monk
     assert "debug: verbose diagnostics enabled" in result.stderr
 
 
+def test_cli_writes_persistent_diagnostic_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LOCAL_N8N_HOME", str(tmp_path))
+    instance_dir = tmp_path / "instances" / "default"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        return CommandResult(args=args, returncode=0, stdout='[{"State":"running"}]', stderr="")
+
+    _patch_compose_runners(monkeypatch, fake_run)
+    monkeypatch.setattr("local_n8n.core.instance.is_web_ui_ready", lambda url: True)
+
+    result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0
+    log_text = _latest_log(tmp_path).read_text(encoding="utf-8")
+    assert "diagnostic log started" in log_text
+    assert "progress: Checking n8n status" in log_text
+    assert "status instance=default" in log_text
+
+
 def test_cli_json_status_writes_single_stdout_object(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -224,6 +253,10 @@ def test_cli_json_error_writes_error_object(
         "ok": False,
     }
     assert "Error:" in result.stderr
+    assert "Diagnostic log:" in result.stderr
+    log_text = _latest_log(tmp_path).read_text(encoding="utf-8")
+    assert "Instance 'default' is not registered." in log_text
+    assert "Run `lon up` first to create it." in log_text
 
 
 def test_cli_init_dry_run_outputs_plan_without_side_effects(
@@ -352,6 +385,9 @@ def test_cli_backup_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert "Encrypted backup created" in result.stderr
     assert "Recovery code created" in result.stderr
     assert "recovery-code" in result.stderr
+    log_text = _latest_log(tmp_path).read_text(encoding="utf-8")
+    assert "progress: fake backup progress" in log_text
+    assert "recovery-code" not in log_text
 
 
 def test_cli_restore_dry_run_outputs_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

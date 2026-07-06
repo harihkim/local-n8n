@@ -1,5 +1,19 @@
 # Troubleshooting
 
+## Diagnostic Logs
+
+Every `lon` invocation writes a diagnostic log:
+
+```text
+~/.config/local-n8n/logs/lon-<timestamp>-<pid>.log
+```
+
+If `LOCAL_N8N_HOME` is set, logs are written under `$LOCAL_N8N_HOME/logs/` instead. Error messages include
+the exact log path.
+
+Diagnostic logs record command metadata, progress messages, friendly errors, and internal diagnostics used
+by `--verbose`. They do not copy typed passphrases or recovery codes from terminal output.
+
 ## Docker Was Not Found
 
 Run:
