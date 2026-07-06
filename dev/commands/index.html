@@ -562,6 +562,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lon-dev-wipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon dev wipe
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -887,6 +915,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lon-dev-wipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lon dev wipe
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1155,10 +1211,12 @@ lon<span class="w"> </span>logs<span class="w"> </span>--follow
 <p>If no opener is available, it prints the URL.</p>
 <h2 id="diagnostics">Diagnostics<a class="headerlink" href="#diagnostics" title="Permanent link">&para;</a></h2>
 <h3 id="lon-doctor"><code>lon doctor</code><a class="headerlink" href="#lon-doctor" title="Permanent link">&para;</a></h3>
-<p>Run read-only prerequisite diagnostics.</p>
+<p>Run prerequisite diagnostics. By default, <code>doctor</code> is read-only.</p>
 <p>Options:</p>
 <ul>
 <li><code>--port</code>, <code>-p</code>: port to check. Default: <code>5678</code>.</li>
+<li><code>--fix</code>: preview or run prerequisite fixes. The first Phase 4 slice supports
+  <code>lon --dry-run doctor --fix</code> only; real installers are not active yet.</li>
 </ul>
 <p>Checks:</p>
 <ul>
@@ -1172,30 +1230,31 @@ lon<span class="w"> </span>logs<span class="w"> </span>--follow
 <p>Help:</p>
 <p>```bash test
 uv run lon doctor --help
-<div class="highlight"><pre><span></span><code>## Development
+<div class="highlight"><pre><span></span><code>Fix preview:
 
-### `lon dev wipe`
-
-Development-only destructive reset. Removes local-n8n Docker resources and local instance state for the
-current `$LOCAL_N8N_HOME`.
-
-This is not a normal user cleanup command. It is intended for local development when you want a clean slate.
-
-Options:
-
-- `--yes`, `-y`: skip the typed confirmation prompt.
-- `--images`: also remove known local-n8n Docker images, including the current built-in n8n image.
-
-Safe preview:
-
-```bash test
+```bash
+lon --dry-run doctor --fix
+</code></pre></div></p>
+<h2 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h2>
+<h3 id="lon-dev-wipe"><code>lon dev wipe</code><a class="headerlink" href="#lon-dev-wipe" title="Permanent link">&para;</a></h3>
+<p>Development-only destructive reset. Removes local-n8n Docker resources and local instance state for the
+current <code>$LOCAL_N8N_HOME</code>.</p>
+<p>This is not a normal user cleanup command. It is intended for local development when you want a clean slate.</p>
+<p>Options:</p>
+<ul>
+<li><code>--yes</code>, <code>-y</code>: skip the typed confirmation prompt.</li>
+<li><code>--images</code>: also remove known local-n8n Docker images, including the current built-in n8n image.</li>
+</ul>
+<p>Safe preview:</p>
+<p>```bash test
 uv run lon --dry-run dev wipe
 uv run lon --dry-run dev wipe --images
+<div class="highlight"><pre><span></span><code>Run for real:
+
+```bash
+lon dev wipe
+lon dev wipe --images
 </code></pre></div></p>
-<p>Run for real:</p>
-<div class="highlight"><pre><span></span><code>lon<span class="w"> </span>dev<span class="w"> </span>wipe
-lon<span class="w"> </span>dev<span class="w"> </span>wipe<span class="w"> </span>--images
-</code></pre></div>
 <p>For real deletion, the command warns and asks you to type <code>yes</code>. Press Enter or type anything else to keep
 the default <code>no</code> choice. Use <code>--yes</code> only for development automation.</p>
 <p>It removes:</p>
