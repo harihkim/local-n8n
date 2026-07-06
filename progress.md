@@ -70,6 +70,8 @@ publishing is gated on completing Phase 4 with validated Linux, macOS, and Windo
   prerequisite fixes, while non-dry-run can execute supported repair commands after confirmation.
 - Added supported Linux/WSL Docker Engine installation planning/execution through Docker's official apt
   repository, including Compose and Buildx packages, service startup, and Docker group membership setup.
+- Added a Windows bootstrap helper and setup guide that recommend WSL Ubuntu plus Docker Desktop WSL
+  integration by default while preserving direct Docker Engine inside WSL as an explicit advanced choice.
 - Added a manual PyPI/TestPyPI publishing workflow using PyPI Trusted Publishing; first real publish is
   deferred until Phase 4 completes and Linux, macOS, and Windows prerequisite support is validated.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -529,5 +531,7 @@ Manual release-candidate smoke pass:
 - Second slice made `lon doctor --fix` executable for supported Docker repair steps, still consent-gated
   and still leaving full Docker installation as a manual action.
 - Third slice adds supported Linux/WSL Docker Engine installation through Docker's official apt repository.
-- Next Phase 4 slices: Windows bootstrap script and macOS/Colima guidance or automation.
+- Fourth slice adds Windows host bootstrap guidance/script for WSL Ubuntu, with Docker Desktop WSL integration
+  as the recommended default and direct Docker Engine inside WSL as an explicit advanced choice.
+- Next Phase 4 slices: macOS/Colima guidance or automation, then three-platform validation.
 - Other near-term follow-up candidates: `lon update` and user config for `default-image-ref`.

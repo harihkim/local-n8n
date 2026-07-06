@@ -11,6 +11,7 @@ create an n8n Docker Compose instance, manage it from the terminal, back it up i
 
 - [Latest docs](https://harihkim.github.io/local-n8n/latest/)
 - [Quickstart](https://harihkim.github.io/local-n8n/latest/quickstart/)
+- [Windows setup](https://harihkim.github.io/local-n8n/latest/windows/)
 - [Command reference](https://harihkim.github.io/local-n8n/latest/commands/)
 - [Troubleshooting](https://harihkim.github.io/local-n8n/latest/troubleshooting/)
 
@@ -31,7 +32,7 @@ Included today:
 
 Not included yet:
 
-- automatic Docker or WSL installation
+- fully automated macOS and Windows Docker installation
 - hosted sync or a managed backend
 - tunnel/public webhook setup
 - remote backup targets
@@ -43,7 +44,8 @@ Not included yet:
 - [`uv`](https://docs.astral.sh/uv/)
 - Docker Engine or Docker Desktop with a working `docker compose`
 
-On Windows, run `lon` inside WSL Ubuntu with Docker available to that distro.
+On Windows, run `lon` inside WSL Ubuntu. The recommended Docker path is Docker Desktop with WSL integration;
+advanced users can choose Docker Engine directly inside WSL instead.
 
 ## Install
 
