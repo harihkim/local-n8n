@@ -160,6 +160,8 @@ lon backup --yes
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+
 Run checks locally:
 
 ```bash
@@ -200,3 +202,5 @@ encrypted before being written to disk.
 
 Do not commit generated `.env` files, `state.db`, `recovery.wrapped`, diagnostic logs, or `.n8nbundle`
 files. The repository ignores those runtime artifacts by default.
+
+Please report suspected vulnerabilities privately. See [SECURITY.md](SECURITY.md).

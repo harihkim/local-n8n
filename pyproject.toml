@@ -11,6 +11,13 @@ dependencies = [
     "rich>=13",
 ]
 
+[project.urls]
+Homepage = "https://github.com/harihkim/local-n8n"
+Documentation = "https://harihkim.github.io/local-n8n/latest/"
+Repository = "https://github.com/harihkim/local-n8n"
+Issues = "https://github.com/harihkim/local-n8n/issues"
+Releases = "https://github.com/harihkim/local-n8n/releases"
+
 [project.scripts]
 lon = "local_n8n.app:main"
 
