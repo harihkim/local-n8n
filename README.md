@@ -44,8 +44,8 @@ Not included yet:
 - [`uv`](https://docs.astral.sh/uv/)
 - Docker Engine or Docker Desktop with a working `docker compose`
 
-On Windows, run `lon` inside WSL Ubuntu. The recommended Docker path is Docker Desktop with WSL integration;
-advanced users can choose Docker Engine directly inside WSL instead.
+On Windows, use PowerShell with the WSL launcher in `scripts/lon.ps1`. The recommended Docker path is Docker
+Desktop with WSL integration; advanced users can choose Docker Engine directly inside WSL instead.
 
 ## Install
 

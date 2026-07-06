@@ -26,7 +26,8 @@ If Docker CLI is missing, install Docker Desktop for Windows and enable WSL inte
 install Docker Engine directly inside WSL/Linux.
 
 On Windows, use the [Windows setup guide](windows.md) to choose between Docker Desktop WSL integration and
-Docker Engine directly inside WSL. Docker Desktop WSL integration is the recommended path for most users.
+Docker Engine directly inside WSL. Docker Desktop WSL integration is the recommended path for most users,
+and the PowerShell launcher runs `lon` inside WSL for you.
 
 On supported Linux/WSL distributions, preview the Docker Engine install plan:
 
