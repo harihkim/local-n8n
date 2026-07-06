@@ -358,8 +358,9 @@ Apply supported fixes:
 lon doctor --fix
 ```
 
-The current Phase 4 implementation can run executable Docker repair steps such as starting the Docker
-service on Linux/WSL. Missing Docker installation remains a manual action for now.
+The current Phase 4 implementation can run executable Docker repair steps such as installing Docker Engine
+from Docker's official apt repository on supported Linux/WSL distributions, starting the Docker service, and
+installing the Compose plugin. Unsupported platforms still receive manual instructions.
 
 ## Development
 

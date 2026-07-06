@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from local_n8n.bootstrap.docker import apply_bootstrap_plan, plan_docker_bootstrap
 from local_n8n.core.doctor import DoctorCheck, DoctorReport
 from local_n8n.core.runner import CommandResult
@@ -19,6 +21,64 @@ def test_docker_bootstrap_plan_installs_docker_when_cli_is_missing() -> None:
 
     assert plan.needed
     assert [action.name for action in plan.actions] == ["install-docker"]
+    assert plan.actions[0].manual_hint == "Install Docker."
+
+
+def test_docker_bootstrap_plan_installs_docker_on_supported_apt_linux(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("local_n8n.bootstrap.docker._supported_apt_distro", lambda: "ubuntu")
+    report = DoctorReport(
+        checks=[
+            DoctorCheck("Platform", True, "Linux (WSL)"),
+            DoctorCheck(
+                "Docker CLI",
+                False,
+                "not found",
+                hint="Install Docker Engine inside WSL.",
+                exit_code=10,
+            ),
+        ]
+    )
+
+    plan = plan_docker_bootstrap(report)
+
+    action = plan.actions[0]
+    assert action.name == "install-docker"
+    assert action.executable
+    assert action.commands[0] == ["sudo", "apt-get", "update"]
+    assert [
+        "sudo",
+        "apt-get",
+        "install",
+        "-y",
+        "docker-ce",
+        "docker-ce-cli",
+        "containerd.io",
+        "docker-buildx-plugin",
+        "docker-compose-plugin",
+    ] in action.commands
+    assert any(
+        "download.docker.com/linux/ubuntu" in " ".join(command) for command in action.commands
+    )
+    assert "open a new shell" in action.manual_hint
+
+
+def test_docker_bootstrap_plan_keeps_unsupported_linux_install_manual(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("local_n8n.bootstrap.docker._supported_apt_distro", lambda: None)
+    report = DoctorReport(
+        checks=[
+            DoctorCheck("Platform", True, "Linux"),
+            DoctorCheck("Docker CLI", False, "not found", hint="Install Docker.", exit_code=10),
+        ]
+    )
+
+    plan = plan_docker_bootstrap(report)
+
+    assert plan.actions[0].name == "install-docker"
+    assert not plan.actions[0].executable
     assert plan.actions[0].manual_hint == "Install Docker."
 
 

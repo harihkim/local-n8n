@@ -1,8 +1,9 @@
 # Quickstart
 
-This guide assumes Linux or WSL with Python 3.13, `uv`, and Docker Engine available.
+This guide assumes Linux or WSL with Python 3.13 and `uv` available.
 
-Automatic WSL and Docker provisioning is planned for a later phase. For now, `lon doctor` detects and explains prerequisite problems.
+`lon doctor` detects prerequisite problems. `lon --dry-run doctor --fix` previews supported Docker repair
+steps, and `lon doctor --fix` can run supported Linux/WSL fixes after confirmation.
 
 ## 1. Install
 
@@ -24,6 +25,12 @@ lon doctor
 
 `doctor` is read-only. It checks platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and
 port availability. Inside WSL, it also reports when Docker Desktop WSL integration is the active backend.
+
+To preview supported fixes:
+
+```bash
+lon --dry-run doctor --fix
+```
 
 ## 3. Initialize and Start n8n
 

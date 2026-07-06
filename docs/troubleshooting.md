@@ -25,6 +25,21 @@ lon doctor
 If Docker CLI is missing, install Docker Desktop for Windows and enable WSL integration for this distro, or
 install Docker Engine directly inside WSL/Linux.
 
+On supported Linux/WSL distributions, preview the Docker Engine install plan:
+
+```bash
+lon --dry-run doctor --fix
+```
+
+If the plan looks right, run:
+
+```bash
+lon doctor --fix
+```
+
+The Linux/WSL fix uses Docker's official apt repository and asks for confirmation before running privileged
+commands. Open a new shell after installation if Docker group membership changed.
+
 ## Docker Desktop WSL Integration Is Active
 
 This is a valid setup. Docker Desktop runs its own WSL backend and exposes Docker commands inside your
