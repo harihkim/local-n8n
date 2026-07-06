@@ -6,7 +6,12 @@ The current alpha includes the Phase 3 portability loop: guided init, Docker Com
 management, instance state, diagnostics, encrypted backup/restore, and recovery/passphrase admin commands.
 It does not automatically install Docker, manage Windows bootstrap, configure tunnels, or publish remotes.
 
-Documentation: https://harihkim.github.io/local-n8n/
+Documentation:
+
+- [Latest docs](https://harihkim.github.io/local-n8n/latest/)
+- [Release process and public repository checklist](https://harihkim.github.io/local-n8n/latest/release/)
+
+Until GitHub Pages is enabled for the public repository, the same docs are available in [`docs/`](docs/).
 
 ## Requirements
 
@@ -130,7 +135,8 @@ CI runs lint, format check, `ty`, Pyrefly, tests, and docs build on pushes and p
 PyPI publishing is intentionally deferred until the Phase 3 MVP checkpoint is reviewed.
 
 The documentation site is built with MkDocs Material and published with versioned URLs. The default docs
-version is `latest`, with `dev` available for unreleased work on `main`.
+version is `latest`, with `dev` available for unreleased work on `main`. GitHub Pages should be enabled
+from the `gh-pages` branch after the repository is made public.
 
 The default n8n image follows n8n's official stable Docker image:
 

@@ -25,6 +25,15 @@ dist/
 site/
 *.egg-info/
 
+# local-n8n runtime artifacts
+*.n8nbundle
+state.db
+state.db-*
+recovery.wrapped
+logs/
+backups/
+instances/
+
 # Local environment files
 .env
 .env.*

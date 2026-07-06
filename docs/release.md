@@ -59,6 +59,7 @@ remain unavailable until the repository is public or Pages is supported by the r
 Before making the repository public:
 
 - confirm no local secrets, recovery codes, generated bundles, `.env` files, or private logs are committed
+- keep internal planning notes out of the public repository; publish durable decisions through README and docs
 - confirm release artifacts and install instructions point at the intended public repository
 - enable GitHub Pages from the `gh-pages` branch
 - verify `https://harihkim.github.io/local-n8n/` and the `latest` docs alias return HTTP 200

@@ -144,8 +144,9 @@ Follow-up manual testing exposed that `docker compose ps --format json` omits st
 
 ### Unplanned convenience: instance listing
 
-`plan.md` Phase 1 listed `status/logs/restart/open`, but manual testing with multiple instances made it
-clear that users need a discovery command instead of remembering every `--instance` value.
+The earlier internal Phase 1 plan listed `status/logs/restart/open`, but manual testing with multiple
+instances made it clear that users need a discovery command instead of remembering every `--instance`
+value.
 
 Added:
 
@@ -154,7 +155,7 @@ lon list
 ```
 
 It renders registered instances with name, URL, container state, and volume. This feature was not explicitly
-called out in `plan.md`; it was added as Phase 1 UX polish.
+called out in the earlier internal plan; it was added as Phase 1 UX polish.
 
 Follow-up polish: when instances are listed, the CLI now suggests
 `lon status --instance <name>` for more detail.
@@ -195,8 +196,8 @@ be logged.
 
 ### Phase 1b global flags
 
-`plan.md` listed `--json`, `--dry-run`, and `--yes` in Phase 1, but the first Phase 1 branch focused on the
-lifecycle/state/doctor checkpoint.
+The earlier internal plan listed `--json`, `--dry-run`, and `--yes` in Phase 1, but the first Phase 1
+branch focused on the lifecycle/state/doctor checkpoint.
 
 Implemented in Phase 1b:
 
@@ -338,8 +339,8 @@ Safety decisions:
 - JSON output is available through the existing global `--json`
 - local deletion is limited to instance files and SQLite state under `$LOCAL_N8N_HOME`
 
-This feature was not explicitly in `plan.md`; it was added as developer-experience support while building
-Phase 2.
+This feature was not explicitly in the earlier internal plan; it was added as developer-experience support
+while building Phase 2.
 
 Manual testing exposed the important two-step reset case: running `lon dev wipe` first removes local state,
 so a later `lon dev wipe --images` must still know which built-in n8n image to remove. Added core and CLI
@@ -349,7 +350,7 @@ with default `no` unless the user types `yes` or passes `--yes`.
 ### Phase 3a crypto core
 
 Added the first Phase 3 slice as a library-only module, with no CLI, Docker, filesystem persistence, or
-backup orchestration yet. `core/crypto.py` implements the `.n8nbundle` envelope framing from `plan.md`:
+backup orchestration yet. `core/crypto.py` implements the planned `.n8nbundle` envelope framing:
 
 - `N8NB` magic prefix, 4-byte big-endian header length, canonical JSON header, and AES-GCM
   `ciphertext || tag` payload
