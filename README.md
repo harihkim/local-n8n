@@ -204,3 +204,8 @@ Do not commit generated `.env` files, `state.db`, `recovery.wrapped`, diagnostic
 files. The repository ignores those runtime artifacts by default.
 
 Please report suspected vulnerabilities privately. See [SECURITY.md](SECURITY.md).
+
+## License
+
+`local-n8n` is licensed under the [Apache License 2.0](LICENSE). This license applies to the `local-n8n`
+CLI and documentation in this repository; it does not relicense n8n itself.

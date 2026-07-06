@@ -3,7 +3,11 @@ name = "local-n8n"
 version = "0.1.0a3"
 description = "Cross-platform CLI for a local, portable, self-hosted n8n (lon)."
 readme = "README.md"
+license = "Apache-2.0"
 requires-python = ">=3.13"
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+]
 dependencies = [
     "argon2-cffi>=23.1",
     "cryptography>=43",
