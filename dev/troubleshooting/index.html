@@ -434,6 +434,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#diagnostic-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostic Logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#docker-was-not-found" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -654,6 +665,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#diagnostic-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostic Logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#docker-was-not-found" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -806,6 +828,14 @@
 
 
 <h1 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h1>
+<h2 id="diagnostic-logs">Diagnostic Logs<a class="headerlink" href="#diagnostic-logs" title="Permanent link">&para;</a></h2>
+<p>Every <code>lon</code> invocation writes a diagnostic log:</p>
+<div class="highlight"><pre><span></span><code>~/.config/local-n8n/logs/lon-&lt;timestamp&gt;-&lt;pid&gt;.log
+</code></pre></div>
+<p>If <code>LOCAL_N8N_HOME</code> is set, logs are written under <code>$LOCAL_N8N_HOME/logs/</code> instead. Error messages include
+the exact log path.</p>
+<p>Diagnostic logs record command metadata, progress messages, friendly errors, and internal diagnostics used
+by <code>--verbose</code>. They do not copy typed passphrases or recovery codes from terminal output.</p>
 <h2 id="docker-was-not-found">Docker Was Not Found<a class="headerlink" href="#docker-was-not-found" title="Permanent link">&para;</a></h2>
 <p>Run:</p>
 <div class="highlight"><pre><span></span><code>lon<span class="w"> </span>doctor

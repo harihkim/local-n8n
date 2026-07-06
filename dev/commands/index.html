@@ -915,14 +915,19 @@ uv run lon --help
 
 | Option | Purpose |
 | --- | --- |
-| `--verbose` | Print diagnostic details to stderr. |
+| `--verbose` | Also print diagnostic details to stderr. |
 | `--json` | Emit one JSON object to stdout for finite commands. |
-| `--dry-run` | Preview mutating/browser commands without side effects. |
+| `--dry-run` | Preview mutating/browser commands without changing instance files, state, Docker, or browsers. |
 | `--yes`, `-y` | Assume yes for confirmation prompts where supported. |
 
 Human output goes to stderr. JSON output goes to stdout. Lifecycle commands that may wait on Docker
 also stream Docker Compose output to stderr. In an interactive terminal, Docker&#39;s live progress display is
 preserved; in non-interactive output it falls back to plain streaming.
+
+Every invocation writes a persistent diagnostic log under `$LOCAL_N8N_HOME/logs/`, or
+`~/.config/local-n8n/logs/` when `LOCAL_N8N_HOME` is not set. The log records command metadata, progress,
+friendly errors, and internal diagnostics. It does not mirror terminal output wholesale, so recovery codes
+and typed passphrases are not copied into the log. `--dry-run` may still create a diagnostic log file.
 
 ## Lifecycle
 

@@ -518,6 +518,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#public-repository-readiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Public Repository Readiness
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -585,6 +596,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#public-repository-readiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Public Repository Readiness
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -635,6 +657,18 @@ uv<span class="w"> </span>run<span class="w"> </span>--python<span class="w"> </
 <p>Expected public URL:</p>
 <div class="highlight"><pre><span></span><code>https://harihkim.github.io/local-n8n/
 </code></pre></div>
+<h2 id="public-repository-readiness">Public Repository Readiness<a class="headerlink" href="#public-repository-readiness" title="Permanent link">&para;</a></h2>
+<p>The <code>gh-pages</code> branch can be updated while the repository is private, but the public GitHub Pages URL may
+remain unavailable until the repository is public or Pages is supported by the repository's GitHub plan.</p>
+<p>Before making the repository public:</p>
+<ul>
+<li>confirm no local secrets, recovery codes, generated bundles, <code>.env</code> files, or private logs are committed</li>
+<li>keep internal planning notes out of the public repository; publish durable decisions through README and docs</li>
+<li>confirm release artifacts and install instructions point at the intended public repository</li>
+<li>enable GitHub Pages from the <code>gh-pages</code> branch</li>
+<li>verify <code>https://harihkim.github.io/local-n8n/</code> and the <code>latest</code> docs alias return HTTP 200</li>
+<li>keep early releases marked as prereleases until public feedback validates the alpha flow</li>
+</ul>
 
 
 
