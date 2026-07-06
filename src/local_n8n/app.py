@@ -11,7 +11,11 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from local_n8n.bootstrap.docker import BootstrapPlan, plan_docker_bootstrap
+from local_n8n.bootstrap.docker import (
+    BootstrapPlan,
+    apply_bootstrap_plan,
+    plan_docker_bootstrap,
+)
 from local_n8n.core import diagnostics
 from local_n8n.core.backup import (
     backup_instance,
@@ -1296,17 +1300,21 @@ def doctor(
         )
     console.print(table)
     if bootstrap_plan is not None:
-        if not options.dry_run:
-            _handle_error(
-                UsageError(
-                    "`lon doctor --fix` is not implemented yet.",
-                    hint=(
-                        "Run `lon --dry-run doctor --fix` to preview the planned "
-                        "prerequisite fixes."
-                    ),
+        if options.dry_run:
+            _emit_bootstrap_dry_run(bootstrap_plan)
+        else:
+            if not _confirm_bootstrap_plan(bootstrap_plan):
+                _handle_error(
+                    LonError("Prerequisite fixes cancelled.", hint="Nothing was changed.")
                 )
-            )
-        _emit_bootstrap_dry_run(bootstrap_plan)
+            try:
+                _emit_bootstrap_apply_start(bootstrap_plan)
+                apply_bootstrap_plan(bootstrap_plan, progress=_progress)
+            except LonError as error:
+                _handle_error(error)
+            _emit_bootstrap_apply_done(bootstrap_plan)
+            if any(not action.executable for action in bootstrap_plan.actions) and not report.ok:
+                raise typer.Exit(report.exit_code)
 
     _maybe_emit_json(
         {
@@ -1344,7 +1352,47 @@ def _emit_bootstrap_dry_run(plan: BootstrapPlan) -> None:
     for action in plan.actions:
         console.print(f"[dim]would plan: {action.name}[/dim]")
         console.print(f"[dim]reason: {action.reason}[/dim]")
+        if action.commands:
+            for command in action.commands:
+                console.print(f"[dim]would run: {' '.join(command)}[/dim]")
+        else:
+            console.print("[dim]manual action required[/dim]")
         console.print(f"[dim]hint: {action.manual_hint}[/dim]")
+
+
+def _emit_bootstrap_apply_start(plan: BootstrapPlan) -> None:
+    if not plan.needed:
+        console.print("[green]No prerequisite fixes needed.[/green]")
+        return
+    console.print("[yellow]Applying prerequisite fixes...[/yellow]")
+
+
+def _emit_bootstrap_apply_done(plan: BootstrapPlan) -> None:
+    if not plan.needed:
+        return
+    manual_actions = [action for action in plan.actions if not action.executable]
+    if manual_actions:
+        console.print("[yellow]Some prerequisite fixes require manual action.[/yellow]")
+        for action in manual_actions:
+            console.print(f"[dim]{action.name}: {action.manual_hint}[/dim]")
+    console.print("[green]Prerequisite fix step finished.[/green]")
+
+
+def _confirm_bootstrap_plan(plan: BootstrapPlan) -> bool:
+    if options.assume_yes:
+        return True
+    if not plan.needed:
+        return True
+
+    console.print("[yellow]Prerequisite fixes may run system commands with sudo.[/yellow]")
+    for action in plan.actions:
+        console.print(f"[dim]{action.name}: {action.reason}[/dim]")
+        for command in action.commands:
+            console.print(f"[dim]will run: {' '.join(command)}[/dim]")
+        if not action.commands:
+            console.print(f"[dim]manual action: {action.manual_hint}[/dim]")
+    answer = console.input("[bold yellow]Apply prerequisite fixes? (y/N): [/bold yellow]")
+    return answer.strip().lower() in {"y", "yes"}
 
 
 def _bootstrap_plan_payload(plan: BootstrapPlan | None) -> dict[str, Any] | None:
@@ -1356,7 +1404,8 @@ def _bootstrap_plan_payload(plan: BootstrapPlan | None) -> dict[str, Any] | None
             {
                 "name": action.name,
                 "reason": action.reason,
-                "command": action.command,
+                "commands": action.commands,
+                "executable": action.executable,
                 "manual_hint": action.manual_hint,
             }
             for action in plan.actions

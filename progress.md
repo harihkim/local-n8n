@@ -4,8 +4,8 @@
 
 Phase 3 backup/restore/admin MVP is released as GitHub prerelease `v0.1.0a3`.
 
-Phase 4 has started with a prerequisite automation contract: `lon --dry-run doctor --fix` now previews
-Docker prerequisite fixes while real installers remain disabled until the next slice.
+Phase 4 prerequisite automation is in progress: `lon --dry-run doctor --fix` previews Docker prerequisite
+fixes, and `lon doctor --fix` can now run supported executable fixes with confirmation.
 
 ## Implemented
 
@@ -64,8 +64,8 @@ Docker prerequisite fixes while real installers remain disabled until the next s
   during clean-slate testing, with optional image removal through `--images`.
 - Added persistent per-invocation diagnostic logs under `~/.config/local-n8n/logs/` (or
   `$LOCAL_N8N_HOME/logs/`) with command metadata, progress, friendly errors, and internal diagnostics.
-- Started Phase 4 with a bootstrap planning layer and `lon doctor --fix` guardrail: dry-run previews
-  Docker prerequisite fixes, while non-dry-run exits clearly until real installers are implemented.
+- Started Phase 4 with a bootstrap planning layer and `lon doctor --fix`: dry-run previews Docker
+  prerequisite fixes, while non-dry-run can execute supported repair commands after confirmation.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -520,6 +520,8 @@ Manual release-candidate smoke pass:
 
 - First slice landed the safe command contract: `lon --dry-run doctor --fix` previews Docker prerequisite
   fixes without changing the machine.
-- Next Phase 4 slices: real consent-gated Docker remediation, Windows bootstrap script, and macOS/Colima
+- Second slice made `lon doctor --fix` executable for supported Docker repair steps, still consent-gated
+  and still leaving full Docker installation as a manual action.
+- Next Phase 4 slices: Docker Engine install planning/execution, Windows bootstrap script, and macOS/Colima
   guidance or automation.
 - Other near-term follow-up candidates: `lon update` and user config for `default-image-ref`.

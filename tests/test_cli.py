@@ -968,7 +968,7 @@ def test_cli_doctor_fix_dry_run_previews_prereq_fixes(
     assert "Docker CLI is not installed." in result.stderr
 
 
-def test_cli_doctor_fix_without_dry_run_fails_until_installers_exist(
+def test_cli_doctor_fix_without_confirmation_cancels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("local_n8n.core.doctor.shutil.which", lambda name: None)
@@ -982,8 +982,46 @@ def test_cli_doctor_fix_without_dry_run_fails_until_installers_exist(
 
     monkeypatch.setattr("local_n8n.core.doctor.run", fake_run)
 
-    result = runner.invoke(app, ["doctor", "--fix", "--port", "0"])
+    result = runner.invoke(app, ["doctor", "--fix", "--port", "0"], input="\n")
 
-    assert result.exit_code == 2
-    assert "`lon doctor --fix` is not implemented yet." in result.stderr
-    assert "lon --dry-run doctor --fix" in result.stderr
+    assert result.exit_code == 1
+    assert "Apply prerequisite fixes? (y/N)" in result.stderr
+    assert "Prerequisite fixes cancelled." in result.stderr
+
+
+def test_cli_doctor_fix_yes_runs_executable_prereq_fix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("local_n8n.core.doctor.shutil.which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(
+        "local_n8n.core.doctor._port_check",
+        lambda port: DoctorCheck("Port 0", True, "available"),
+    )
+    monkeypatch.setattr("local_n8n.core.doctor._is_wsl", lambda: True)
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        if args == ["docker", "info"]:
+            return CommandResult(args=args, returncode=1, stdout="", stderr="daemon unavailable")
+        if args == ["docker", "info", "--format", "{{json .}}"]:
+            return CommandResult(args=args, returncode=1, stdout="", stderr="daemon unavailable")
+        if args == ["docker", "compose", "version"]:
+            return CommandResult(
+                args=args, returncode=0, stdout="Docker Compose version v5.1.4", stderr=""
+            )
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    commands: list[list[str]] = []
+
+    def fake_runner(args: list[str], cwd: Path) -> CommandResult:
+        commands.append(args)
+        return CommandResult(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("local_n8n.core.doctor.run", fake_run)
+    monkeypatch.setattr("local_n8n.bootstrap.docker.run_streaming", fake_runner)
+
+    result = runner.invoke(app, ["--yes", "doctor", "--fix", "--port", "0"])
+
+    assert result.exit_code == 0
+    assert commands == [["sudo", "service", "docker", "start"]]
+    assert "Applying prerequisite fixes" in result.stderr
+    assert "Prerequisite fix step finished" in result.stderr

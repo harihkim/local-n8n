@@ -328,8 +328,8 @@ Run prerequisite diagnostics. By default, `doctor` is read-only.
 Options:
 
 - `--port`, `-p`: port to check. Default: `5678`.
-- `--fix`: preview or run prerequisite fixes. The first Phase 4 slice supports
-  `lon --dry-run doctor --fix` only; real installers are not active yet.
+- `--fix`: preview or run supported prerequisite fixes. Real fixes ask for confirmation unless global
+  `--yes` is used.
 
 Checks:
 
@@ -351,6 +351,15 @@ Fix preview:
 ```bash
 lon --dry-run doctor --fix
 ```
+
+Apply supported fixes:
+
+```bash
+lon doctor --fix
+```
+
+The current Phase 4 implementation can run executable Docker repair steps such as starting the Docker
+service on Linux/WSL. Missing Docker installation remains a manual action for now.
 
 ## Development
 
