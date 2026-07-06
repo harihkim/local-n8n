@@ -1,8 +1,9 @@
 # Release Process
 
-`local-n8n` currently publishes GitHub prereleases, not PyPI packages.
+`local-n8n` publishes GitHub prereleases and is prepared for PyPI/TestPyPI trusted publishing.
 
-PyPI publishing is deferred while early alpha releases are validated through GitHub prereleases.
+PyPI publishing is intentionally manual until the Trusted Publisher configuration is set up and a release
+candidate has been validated.
 
 ## Package Release
 
@@ -20,10 +21,49 @@ The release workflow runs checks, builds:
 
 and creates a GitHub prerelease with those artifacts attached.
 
+## PyPI Publishing
+
+GitHub Packages does not provide a PyPI-compatible Python package registry, so Python package publishing
+uses PyPI/TestPyPI.
+
+The package name `local-n8n` currently appears available on both PyPI and TestPyPI.
+
+Before publishing for the first time:
+
+1. Create or sign in to the target package index account.
+2. Configure a Trusted Publisher for this repository and workflow:
+   - repository owner: `harihkim`
+   - repository name: `local-n8n`
+   - workflow filename: `publish-pypi.yml`
+   - environment: `testpypi` for TestPyPI, `pypi` for PyPI
+3. Run the `Publish Python Package` workflow manually.
+4. Publish to `testpypi` first.
+5. After the TestPyPI install smoke passes, publish to `pypi`.
+
+TestPyPI install smoke:
+
+```bash
+uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ local-n8n
+lon --help
+```
+
+PyPI install smoke:
+
+```bash
+uv tool install local-n8n
+lon --help
+```
+
 ## Install From a Release
 
 ```bash
 uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
+```
+
+After the first PyPI publish, users can install with:
+
+```bash
+uv tool install local-n8n
 ```
 
 ## Docs Release

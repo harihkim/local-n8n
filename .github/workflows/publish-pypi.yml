@@ -1,0 +1,105 @@
+name: Publish Python Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Package index to publish to"
+        required: true
+        default: "testpypi"
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      - name: Lint
+        run: uv run --python 3.13 ruff check .
+
+      - name: Check formatting
+        run: uv run --python 3.13 ruff format --check .
+
+      - name: Type check
+        run: uv run --python 3.13 ty check
+
+      - name: Pyrefly type check
+        run: uv run --python 3.13 pyrefly check
+
+      - name: Test
+        run: uv run --python 3.13 pytest tests
+
+      - name: Build docs
+        run: uv run --python 3.13 mkdocs build --strict
+
+      - name: Build wheel and source distribution
+        run: uv build --sdist --wheel
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: github.event.inputs.repository == 'testpypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/local-n8n/
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+
+      - name: Publish distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    if: github.event.inputs.repository == 'pypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/local-n8n/
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

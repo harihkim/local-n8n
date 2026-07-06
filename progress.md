@@ -5,7 +5,8 @@
 Phase 3 backup/restore/admin MVP is released as GitHub prerelease `v0.1.0a3`.
 
 Phase 4 prerequisite automation is in progress: `lon --dry-run doctor --fix` previews Docker prerequisite
-fixes, and `lon doctor --fix` can now run supported executable fixes with confirmation.
+fixes, and `lon doctor --fix` can now run supported executable fixes with confirmation. Release
+infrastructure now also has a manual PyPI/TestPyPI Trusted Publishing workflow ready for setup.
 
 ## Implemented
 
@@ -66,6 +67,8 @@ fixes, and `lon doctor --fix` can now run supported executable fixes with confir
   `$LOCAL_N8N_HOME/logs/`) with command metadata, progress, friendly errors, and internal diagnostics.
 - Started Phase 4 with a bootstrap planning layer and `lon doctor --fix`: dry-run previews Docker
   prerequisite fixes, while non-dry-run can execute supported repair commands after confirmation.
+- Added a manual PyPI/TestPyPI publishing workflow using PyPI Trusted Publishing; first real publish still
+  requires configuring Trusted Publishers on TestPyPI/PyPI.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
 
 ## Unexpected issues and fixes
@@ -268,8 +271,8 @@ the `src` import path.
 
 Added `.github/workflows/release.yml` for tag-triggered prereleases. Pushing a tag like `v0.1.0a1` runs the
 same checks, builds the wheel and source distribution with `uv build --sdist --wheel`, and creates a GitHub
-prerelease with the artifacts attached. PyPI publishing is intentionally deferred until after the core
-backup/restore MVP loop is stable.
+prerelease with the artifacts attached. At that point, PyPI publishing was intentionally deferred until after
+the core backup/restore MVP loop stabilized.
 
 ### Versioned documentation site
 
@@ -468,7 +471,7 @@ Started the Phase 3 checkpoint review:
 - added backup/restore and recovery-admin flow to the quickstart
 - added a Phase 3 manual testing checklist covering backup, restore, recovery show/rotate, passphrase
   change/reset, and restored recovery-material behavior
-- clarified that PyPI publishing waits for Phase 3 checkpoint review rather than the older generic
+- clarified that PyPI publishing was waiting for Phase 3 checkpoint review rather than the older generic
   backup/restore stability milestone
 - quieted Docker Compose's restore warning for pre-created generation volumes by rendering restored volumes
   as externally managed Compose volumes

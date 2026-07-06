@@ -5,8 +5,15 @@ description = "Cross-platform CLI for a local, portable, self-hosted n8n (lon)."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.13"
+keywords = ["n8n", "cli", "docker", "backup", "self-hosted"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
     "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Archiving :: Backup",
+    "Topic :: Utilities",
 ]
 dependencies = [
     "argon2-cffi>=23.1",

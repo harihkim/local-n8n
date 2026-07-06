@@ -53,6 +53,9 @@ Install the latest GitHub prerelease with `uv`:
 uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 ```
 
+PyPI publishing is prepared but not enabled for users until the first Trusted Publishing release is
+completed.
+
 For development inside this checkout:
 
 ```bash
@@ -189,11 +192,13 @@ GitHub prereleases are created from `v*` tags. The release workflow runs lint, f
 tests, docs build, builds the wheel/source distribution, and attaches those artifacts to a GitHub
 prerelease.
 
-Docs are built with MkDocs Material and versioned with `mike`. The public docs site should be served from
-the `gh-pages` branch once GitHub Pages is enabled for the public repository.
+PyPI/TestPyPI publishing uses PyPI Trusted Publishing and the manual `Publish Python Package` workflow.
+Publish to TestPyPI first, then PyPI after an install smoke test.
 
-PyPI publishing is intentionally deferred while early alpha releases are validated through GitHub
-prereleases.
+Docs are built with MkDocs Material and versioned with `mike`. The public docs site is served from the
+`gh-pages` branch.
+
+PyPI publishing remains manual during alpha releases.
 
 ## Security Notes
 
