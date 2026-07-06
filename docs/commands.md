@@ -323,11 +323,13 @@ If no opener is available, it prints the URL.
 
 ### `lon doctor`
 
-Run read-only prerequisite diagnostics.
+Run prerequisite diagnostics. By default, `doctor` is read-only.
 
 Options:
 
 - `--port`, `-p`: port to check. Default: `5678`.
+- `--fix`: preview or run prerequisite fixes. The first Phase 4 slice supports
+  `lon --dry-run doctor --fix` only; real installers are not active yet.
 
 Checks:
 
@@ -342,6 +344,12 @@ Help:
 
 ```bash test
 uv run lon doctor --help
+```
+
+Fix preview:
+
+```bash
+lon --dry-run doctor --fix
 ```
 
 ## Development

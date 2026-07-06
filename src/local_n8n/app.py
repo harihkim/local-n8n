@@ -11,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from local_n8n.bootstrap.docker import BootstrapPlan, plan_docker_bootstrap
 from local_n8n.core import diagnostics
 from local_n8n.core.backup import (
     backup_instance,
@@ -1274,10 +1275,12 @@ def open(
 @app.command()
 def doctor(
     port: int = typer.Option(5678, "--port", "-p", help="Port to check."),
+    fix: bool = typer.Option(False, "--fix", help="Preview or run prerequisite fixes."),
 ) -> None:
     """Run read-only diagnostics for local n8n prerequisites."""
     console.print("[cyan]Checking local-n8n prerequisites...[/cyan]")
     report = run_doctor(port=port)
+    bootstrap_plan = plan_docker_bootstrap(report) if fix else None
 
     table = Table(title="local-n8n doctor")
     table.add_column("Check")
@@ -1292,10 +1295,25 @@ def doctor(
             check.hint or "",
         )
     console.print(table)
+    if bootstrap_plan is not None:
+        if not options.dry_run:
+            _handle_error(
+                UsageError(
+                    "`lon doctor --fix` is not implemented yet.",
+                    hint=(
+                        "Run `lon --dry-run doctor --fix` to preview the planned "
+                        "prerequisite fixes."
+                    ),
+                )
+            )
+        _emit_bootstrap_dry_run(bootstrap_plan)
+
     _maybe_emit_json(
         {
             "ok": report.ok,
             "command": "doctor",
+            "dry_run": options.dry_run,
+            "fix": fix,
             "exit_code": report.exit_code,
             "checks": [
                 {
@@ -1307,11 +1325,43 @@ def doctor(
                 }
                 for check in report.checks
             ],
+            "would": _bootstrap_plan_payload(bootstrap_plan)
+            if bootstrap_plan is not None
+            else None,
         }
     )
 
-    if not report.ok:
+    if not report.ok and bootstrap_plan is None:
         raise typer.Exit(report.exit_code)
+
+
+def _emit_bootstrap_dry_run(plan: BootstrapPlan) -> None:
+    console.print("[yellow]Dry run. No changes made.[/yellow]")
+    console.print("[dim]command: doctor --fix[/dim]")
+    if not plan.needed:
+        console.print("[dim]No prerequisite fixes needed.[/dim]")
+        return
+    for action in plan.actions:
+        console.print(f"[dim]would plan: {action.name}[/dim]")
+        console.print(f"[dim]reason: {action.reason}[/dim]")
+        console.print(f"[dim]hint: {action.manual_hint}[/dim]")
+
+
+def _bootstrap_plan_payload(plan: BootstrapPlan | None) -> dict[str, Any] | None:
+    if plan is None:
+        return None
+    return {
+        "fixes_needed": plan.needed,
+        "actions": [
+            {
+                "name": action.name,
+                "reason": action.reason,
+                "command": action.command,
+                "manual_hint": action.manual_hint,
+            }
+            for action in plan.actions
+        ],
+    }
 
 
 def main() -> None:

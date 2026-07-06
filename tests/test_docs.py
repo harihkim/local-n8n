@@ -31,7 +31,7 @@ COMMAND_OPTIONS = {
     "status": {"--instance", "-i"},
     "logs": {"--instance", "-i", "--follow", "-f", "--tail"},
     "open": {"--instance", "-i"},
-    "doctor": {"--port", "-p"},
+    "doctor": {"--port", "-p", "--fix"},
     "dev wipe": {"--yes", "-y", "--images"},
 }
 

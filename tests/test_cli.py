@@ -944,3 +944,46 @@ def test_cli_doctor_failure_exits_with_check_code(monkeypatch: pytest.MonkeyPatc
 
     assert result.exit_code == 10
     assert "Docker CLI" in result.stderr
+
+
+def test_cli_doctor_fix_dry_run_previews_prereq_fixes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("local_n8n.core.doctor.shutil.which", lambda name: None)
+    monkeypatch.setattr(
+        "local_n8n.core.doctor._port_check",
+        lambda port: DoctorCheck("Port 0", True, "available"),
+    )
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        raise FileNotFoundError("docker")
+
+    monkeypatch.setattr("local_n8n.core.doctor.run", fake_run)
+
+    result = runner.invoke(app, ["--dry-run", "doctor", "--fix", "--port", "0"])
+
+    assert result.exit_code == 0
+    assert "Dry run. No changes made." in result.stderr
+    assert "would plan: install-docker" in result.stderr
+    assert "Docker CLI is not installed." in result.stderr
+
+
+def test_cli_doctor_fix_without_dry_run_fails_until_installers_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("local_n8n.core.doctor.shutil.which", lambda name: None)
+    monkeypatch.setattr(
+        "local_n8n.core.doctor._port_check",
+        lambda port: DoctorCheck("Port 0", True, "available"),
+    )
+
+    def fake_run(args: list[str], cwd: Path) -> CommandResult:
+        raise FileNotFoundError("docker")
+
+    monkeypatch.setattr("local_n8n.core.doctor.run", fake_run)
+
+    result = runner.invoke(app, ["doctor", "--fix", "--port", "0"])
+
+    assert result.exit_code == 2
+    assert "`lon doctor --fix` is not implemented yet." in result.stderr
+    assert "lon --dry-run doctor --fix" in result.stderr
