@@ -533,5 +533,9 @@ Manual release-candidate smoke pass:
 - Third slice adds supported Linux/WSL Docker Engine installation through Docker's official apt repository.
 - Fourth slice adds Windows host bootstrap guidance/script for WSL Ubuntu, with Docker Desktop WSL integration
   as the recommended default and direct Docker Engine inside WSL as an explicit advanced choice.
+- Windows manual validation passed from WSL Ubuntu with Docker Desktop integration active: `docker info`
+  reported `Operating System: Docker Desktop` / `Name: docker-desktop`, `docker compose version` reported
+  `v5.1.4`, and `uv run lon doctor` passed Platform, Docker CLI, Docker daemon, Docker backend, Docker
+  Compose, and Port 5678 checks.
 - Next Phase 4 slices: macOS/Colima guidance or automation, then three-platform validation.
 - Other near-term follow-up candidates: `lon update` and user config for `default-image-ref`.
