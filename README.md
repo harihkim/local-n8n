@@ -44,9 +44,8 @@ Not included yet:
 - [`uv`](https://docs.astral.sh/uv/)
 - Docker Engine or Docker Desktop with a working `docker compose`
 
-On Windows, install with `uv tool install` or `pipx` and run `lon` from PowerShell. The installed `lon`
-entrypoint delegates into WSL automatically. The recommended Docker path is Docker Desktop with WSL
-integration; advanced users can choose Docker Engine directly inside WSL instead.
+On Windows, install with `uv tool install` or `pipx` and run `lon` from PowerShell. The recommended Docker
+path is Docker Desktop for Windows.
 
 ## Install
 

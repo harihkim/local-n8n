@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 from pathlib import Path
 
@@ -14,6 +15,10 @@ def config_home() -> Path:
     override = os.environ.get("LOCAL_N8N_HOME")
     if override:
         return Path(override).expanduser()
+    if platform.system() == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            return Path(local_app_data) / "local-n8n"
     return Path.home() / ".config" / "local-n8n"
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -236,7 +237,7 @@ def _run(command: list[str]) -> CommandResult:
     except FileNotFoundError as exc:
         raise PrerequisiteError(
             "Docker was not found.",
-            hint="Install Docker Engine inside WSL/Linux, then re-run this command.",
+            hint=_missing_docker_hint(),
         ) from exc
 
 
@@ -246,7 +247,7 @@ def _run_streaming(command: list[str]) -> tuple[str, ...]:
     except FileNotFoundError as exc:
         raise PrerequisiteError(
             "Docker was not found.",
-            hint="Install Docker Engine inside WSL/Linux, then re-run this command.",
+            hint=_missing_docker_hint(),
         ) from exc
     _raise_if_failed(result)
     return tuple(command)
@@ -257,6 +258,14 @@ def _run_ignoring_missing(command: list[str]) -> tuple[str, ...]:
     if result.returncode != 0 and not _is_missing_resource(result):
         _raise_command_failed(result)
     return tuple(command)
+
+
+def _missing_docker_hint() -> str:
+    if platform.system() == "Windows":
+        return "Install Docker Desktop for Windows, start it, then re-run this command."
+    if platform.system() == "Darwin":
+        return "Install Docker Desktop for Mac or Colima, then re-run this command."
+    return "Install Docker Engine inside WSL/Linux, then re-run this command."
 
 
 def _raise_if_failed(result: CommandResult) -> None:

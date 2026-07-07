@@ -42,7 +42,6 @@ from local_n8n.core.instance import (
     stop_instance,
     up_instance,
 )
-from local_n8n.windows_bridge import maybe_delegate_to_wsl
 
 
 @dataclass
@@ -1415,9 +1414,6 @@ def _bootstrap_plan_payload(plan: BootstrapPlan | None) -> dict[str, Any] | None
 
 
 def main() -> None:
-    delegated_exit_code = maybe_delegate_to_wsl()
-    if delegated_exit_code is not None:
-        raise SystemExit(delegated_exit_code)
     app()
 
 

@@ -70,15 +70,10 @@ publishing is gated on completing Phase 4 with validated Linux, macOS, and Windo
   prerequisite fixes, while non-dry-run can execute supported repair commands after confirmation.
 - Added supported Linux/WSL Docker Engine installation planning/execution through Docker's official apt
   repository, including Compose and Buildx packages, service startup, and Docker group membership setup.
-- Added a Windows bootstrap helper and setup guide that recommend WSL Ubuntu plus Docker Desktop WSL
-  integration by default while preserving direct Docker Engine inside WSL as an explicit advanced choice.
-- Added a Windows PowerShell `scripts/lon.ps1` launcher so users can run `lon` from PowerShell while the
-  launcher executes the real command inside WSL.
-- Added `scripts/install-windows-launcher.ps1` to install a user-local `lon` command on Windows, so normal
-  PowerShell usage can be `lon init`, `lon doctor`, and other direct CLI commands.
-- Added a Windows package-entrypoint bridge: when the installed `lon` command runs on Windows, it delegates
-  all commands into WSL, converts obvious Windows paths for WSL, and supports `uv`/`pipx` package installs
-  as the primary Windows UX.
+- Corrected the Windows direction to native Windows-first support: installed `lon` runs from PowerShell,
+  uses Docker Desktop for Windows, opens the browser through Windows shell commands, and stores local state
+  under `%LOCALAPPDATA%\local-n8n` by default.
+- Removed the previous WSL-delegating Windows launcher/bridge approach from the active implementation.
 - Added a manual PyPI/TestPyPI publishing workflow using PyPI Trusted Publishing; first real publish is
   deferred until Phase 4 completes and Linux, macOS, and Windows prerequisite support is validated.
 - Added unit tests for compose rendering, env preservation, CLI behavior, Docker error mapping, readiness polling, state registry, lifecycle parsing, and doctor diagnostics.
@@ -538,15 +533,12 @@ Manual release-candidate smoke pass:
 - Second slice made `lon doctor --fix` executable for supported Docker repair steps, still consent-gated
   and still leaving full Docker installation as a manual action.
 - Third slice adds supported Linux/WSL Docker Engine installation through Docker's official apt repository.
-- Fourth slice adds Windows host bootstrap guidance/script for WSL Ubuntu, with Docker Desktop WSL integration
-  as the recommended default and direct Docker Engine inside WSL as an explicit advanced choice.
-- Windows UX follow-up adds a PowerShell launcher so normal operation can stay in Windows PowerShell instead
-  of asking users to type routine commands in an Ubuntu shell.
-- Windows UX follow-up now installs a user-local `lon.cmd` shim so users can type plain `lon init` from
-  PowerShell while the command still executes safely inside WSL.
-- Windows package-entrypoint follow-up makes `uv tool install local-n8n` / `pipx install local-n8n` the
-  intended package UX: plain `lon ...` runs from PowerShell and delegates to WSL automatically.
-- Windows manual validation passed from WSL Ubuntu with Docker Desktop integration active: `docker info`
+- Fourth slice corrects Windows to a native PowerShell-first implementation: `uv`/`pipx` install provides a
+  normal `lon` command on Windows, `lon doctor` checks Docker Desktop for Windows, and WSL is only a
+  development/runtime option for people who explicitly choose it.
+- Earlier WSL-delegating launcher/bridge experiments were removed from the active implementation.
+- Previous WSL-based manual validation passed from WSL Ubuntu with Docker Desktop integration active:
+  `docker info`
   reported `Operating System: Docker Desktop` / `Name: docker-desktop`, `docker compose version` reported
   `v5.1.4`, and `uv run lon doctor` passed Platform, Docker CLI, Docker daemon, Docker backend, Docker
   Compose, and Port 5678 checks.

@@ -517,6 +517,8 @@ def _web_ui_state(url: str, container_state: str) -> str:
 def _open_commands(url: str) -> list[list[str]]:
     if _is_wsl():
         return [["wslview", url], ["powershell.exe", "Start-Process", url]]
+    if platform.system() == "Windows":
+        return [["cmd", "/c", "start", "", url], ["powershell", "-NoProfile", "Start-Process", url]]
     if platform.system() == "Darwin":
         return [["open", url]]
     return [["xdg-open", url]]
@@ -544,7 +546,7 @@ def _run_compose(cwd: Path, command: list[str], stream: bool = False) -> Command
     except FileNotFoundError as exc:
         raise PrerequisiteError(
             "Docker was not found.",
-            hint="Install Docker Engine inside WSL/Linux, then re-run this command.",
+            hint=_missing_docker_hint(),
         ) from exc
 
     if result.returncode == 0:
@@ -557,7 +559,7 @@ def _run_compose(cwd: Path, command: list[str], stream: bool = False) -> Command
     if "cannot connect to the docker daemon" in output or "docker daemon is not running" in output:
         raise PrerequisiteError(
             "Docker is installed, but the daemon is not running.",
-            hint="Start Docker Engine in WSL/Linux, then re-run this command.",
+            hint=_docker_daemon_hint(),
         )
 
     if (
@@ -578,3 +580,19 @@ def _run_compose(cwd: Path, command: list[str], stream: bool = False) -> Command
             or "Run again with Docker output available."
         ),
     )
+
+
+def _missing_docker_hint() -> str:
+    if platform.system() == "Windows":
+        return "Install Docker Desktop for Windows, start it, then re-run this command."
+    if platform.system() == "Darwin":
+        return "Install Docker Desktop for Mac or Colima, then re-run this command."
+    return "Install Docker Engine inside WSL/Linux, then re-run this command."
+
+
+def _docker_daemon_hint() -> str:
+    if platform.system() == "Windows":
+        return "Start Docker Desktop for Windows, then re-run this command."
+    if platform.system() == "Darwin":
+        return "Start Docker Desktop for Mac or Colima, then re-run this command."
+    return "Start Docker Engine in WSL/Linux, then re-run this command."

@@ -315,7 +315,8 @@ Options:
 
 - `--instance`, `-i`: instance name. Default: `default`.
 
-On WSL, `lon open` tries `wslview` and then `powershell.exe Start-Process`. On Linux it tries `xdg-open`; on macOS it tries `open`.
+On Windows, `lon open` uses the Windows shell. On WSL, it tries `wslview` and then `powershell.exe
+Start-Process`. On macOS it tries `open`; on Linux it tries `xdg-open`.
 
 If no opener is available, it prints the URL.
 
@@ -336,7 +337,7 @@ Checks:
 - platform
 - Docker CLI
 - Docker daemon
-- Docker backend, including Docker Desktop WSL integration detection
+- Docker backend, including Docker Desktop detection
 - Docker Compose
 - port availability
 
@@ -360,7 +361,8 @@ lon doctor --fix
 
 The current Phase 4 implementation can run executable Docker repair steps such as installing Docker Engine
 from Docker's official apt repository on supported Linux/WSL distributions, starting the Docker service, and
-installing the Compose plugin. Unsupported platforms still receive manual instructions.
+installing the Compose plugin. Windows and macOS receive platform-specific Docker Desktop or Colima guidance
+for now.
 
 ## Development
 

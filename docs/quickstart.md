@@ -1,12 +1,11 @@
 # Quickstart
 
-This guide assumes Linux or WSL with Python 3.13 and `uv` available.
+This guide assumes Python 3.13, `uv`, and Docker are available.
 
 `lon doctor` detects prerequisite problems. `lon --dry-run doctor --fix` previews supported Docker repair
-steps, and `lon doctor --fix` can run supported Linux/WSL fixes after confirmation.
+steps, and `lon doctor --fix` can run supported Linux fixes after confirmation.
 
-On Windows, start with the [Windows setup guide](windows.md), install the Windows launcher, then run `lon`
-from PowerShell.
+On Windows, start with the [Windows setup guide](windows.md), then run `lon` from PowerShell.
 
 ## 1. Install
 
@@ -27,7 +26,7 @@ lon doctor
 ```
 
 `doctor` is read-only. It checks platform, Docker CLI, Docker daemon, Docker backend, Docker Compose, and
-port availability. Inside WSL, it also reports when Docker Desktop WSL integration is the active backend.
+port availability. It also reports Docker Desktop when that is the active backend.
 
 To preview supported fixes:
 
@@ -45,6 +44,12 @@ This creates the default instance under:
 
 ```text
 ~/.config/local-n8n/instances/default/
+```
+
+On Windows, the default base directory is:
+
+```text
+%LOCALAPPDATA%\local-n8n\
 ```
 
 It writes:

@@ -92,9 +92,6 @@ def _docker_daemon_check() -> DoctorCheck:
 
 
 def _docker_backend_check() -> DoctorCheck:
-    if not _is_wsl():
-        return DoctorCheck(name="Docker backend", ok=True, detail="not WSL")
-
     try:
         result = run(["docker", "info", "--format", "{{json .}}"], cwd=Path.cwd())
     except FileNotFoundError:
@@ -113,14 +110,20 @@ def _docker_backend_check() -> DoctorCheck:
         detail = backend_detail
         if context:
             detail = f"{detail}; context={context}"
+        if platform.system() == "Windows":
+            hint = "Docker Desktop for Windows is active."
+        elif _is_wsl():
+            hint = (
+                "Docker Desktop WSL integration is active. Docker resources are managed by "
+                "Docker Desktop's WSL backend."
+            )
+        else:
+            hint = "Docker Desktop is active."
         return DoctorCheck(
             name="Docker backend",
             ok=True,
             detail=detail,
-            hint=(
-                "Docker Desktop WSL integration is active. Docker resources are managed by "
-                "Docker Desktop's WSL backend."
-            ),
+            hint=hint,
         )
 
     return DoctorCheck(name="Docker backend", ok=True, detail=backend_detail)
@@ -207,6 +210,10 @@ def _string_value(value: object) -> str:
 
 
 def _docker_missing_hint() -> str:
+    if platform.system() == "Windows":
+        return "Install Docker Desktop for Windows, start it, then re-run doctor."
+    if platform.system() == "Darwin":
+        return "Install Docker Desktop for Mac or Colima, then re-run doctor."
     if _is_wsl():
         return (
             "Install Docker Desktop for Windows and enable WSL integration for this distro, "
@@ -216,6 +223,10 @@ def _docker_missing_hint() -> str:
 
 
 def _docker_unreachable_hint() -> str:
+    if platform.system() == "Windows":
+        return "Start Docker Desktop for Windows, then re-run doctor."
+    if platform.system() == "Darwin":
+        return "Start Docker Desktop for Mac or Colima, then re-run doctor."
     if _is_wsl():
         return (
             "Start Docker Desktop and enable WSL integration for this distro, or start "
