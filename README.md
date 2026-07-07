@@ -44,9 +44,9 @@ Not included yet:
 - [`uv`](https://docs.astral.sh/uv/)
 - Docker Engine or Docker Desktop with a working `docker compose`
 
-On Windows, install the PowerShell launcher with `scripts/install-windows-launcher.ps1`, then run `lon`
-from PowerShell. The recommended Docker path is Docker Desktop with WSL integration; advanced users can
-choose Docker Engine directly inside WSL instead.
+On Windows, install with `uv tool install` or `pipx` and run `lon` from PowerShell. The installed `lon`
+entrypoint delegates into WSL automatically. The recommended Docker path is Docker Desktop with WSL
+integration; advanced users can choose Docker Engine directly inside WSL instead.
 
 ## Install
 
@@ -58,6 +58,12 @@ uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
 
 PyPI publishing is prepared but not enabled for users until Phase 4 is complete and Linux, macOS, and
 Windows prerequisite support has been validated.
+
+After PyPI publishing is enabled, the normal install path will be:
+
+```bash
+uv tool install local-n8n
+```
 
 For development inside this checkout:
 

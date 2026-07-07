@@ -10,7 +10,7 @@ The intended Windows command is still:
 lon init
 ```
 
-The Windows installer below creates that command by installing a small `lon.cmd` shim on your user PATH.
+When installed as a package on Windows, the `lon` entrypoint delegates commands into WSL automatically.
 
 ## Recommended Path
 
@@ -21,11 +21,41 @@ For most users, use Docker Desktop with WSL integration:
 3. Start Docker Desktop.
 4. Enable the WSL 2 based engine.
 5. Enable Docker Desktop WSL integration for the Ubuntu distro.
-6. Install the Windows `lon` command with `.\scripts\install-windows-launcher.ps1`.
+6. Install `local-n8n` with `uv` or `pipx`.
 7. From PowerShell, run `lon doctor`.
 
 This keeps Docker daemon management on the Windows side while `lon` and n8n project files stay in Linux.
 The PowerShell launcher runs `lon` inside WSL for you.
+
+## Package Install
+
+After PyPI publishing is enabled:
+
+```powershell
+uv tool install local-n8n
+lon doctor
+lon init
+```
+
+`pipx` is also a good fit for CLI installation:
+
+```powershell
+pipx install local-n8n
+lon doctor
+lon init
+```
+
+During alpha releases before PyPI publishing, install from the tagged GitHub prerelease and tell the Windows
+bridge to use the same package source inside WSL:
+
+```powershell
+uv tool install git+https://github.com/harihkim/local-n8n.git@v0.1.0a3
+$env:LOCAL_N8N_WINDOWS_PACKAGE_SPEC = "git+https://github.com/harihkim/local-n8n.git@v0.1.0a3"
+lon doctor
+```
+
+Set `LOCAL_N8N_WINDOWS_PACKAGE_SPEC` as a user environment variable if you want that alpha git source to
+persist across PowerShell sessions.
 
 ## Alternative Path
 
@@ -53,14 +83,14 @@ From Windows PowerShell at the repository root:
 
 The default mode prepares WSL Ubuntu and prints the Docker Desktop WSL integration steps.
 
-Then install the Windows `lon` command:
+For source-checkout development, install a local Windows `lon` command:
 
 ```powershell
 .\scripts\install-windows-launcher.ps1
 ```
 
 That installs a user-local `lon.cmd` shim under `%LOCALAPPDATA%\Programs\local-n8n\bin` and adds that
-directory to your user PATH.
+directory to your user PATH. The shim runs this checkout through WSL with `uv run lon`.
 
 To choose direct Docker Engine inside WSL:
 
@@ -82,7 +112,9 @@ From PowerShell, verify the `lon` view of Docker:
 lon doctor
 ```
 
-In repository mode, that command runs `uv run lon doctor` inside WSL from this checkout.
+On Windows, `lon doctor` delegates into WSL. In package mode it runs the installed WSL `lon` when present,
+or uses `uv` inside WSL to run the configured package source. In source-checkout mode it runs `uv run lon`
+from this checkout.
 
 If you need lower-level Docker details, you can still use Ubuntu directly:
 

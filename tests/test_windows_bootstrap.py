@@ -47,6 +47,9 @@ def test_windows_setup_docs_cover_both_docker_paths() -> None:
     text = WINDOWS_DOC.read_text(encoding="utf-8")
 
     assert "use PowerShell as the main interface" in text
+    assert "uv tool install local-n8n" in text
+    assert "pipx install local-n8n" in text
+    assert "LOCAL_N8N_WINDOWS_PACKAGE_SPEC" in text
     assert "Docker Desktop with WSL integration" in text
     assert "Docker Engine directly inside WSL" in text
     assert ".\\scripts\\bootstrap-windows.ps1" in text
